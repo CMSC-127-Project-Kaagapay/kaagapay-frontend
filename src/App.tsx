@@ -11,14 +11,15 @@ import Volunteer from './pages/Volunteer';
 import Report from './pages/Report';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import SetPassword from './pages/SetPassword';
 
 function AppContent() {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/set-password';
 
   return (
     <div className="min-h-screen flex flex-col">
-      {!isLoginPage && <Navbar />}
+      {!isAuthPage && <Navbar />}
       <main className="flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -26,9 +27,10 @@ function AppContent() {
           <Route path="/report" element={<Report />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/set-password" element={<SetPassword />} />
         </Routes>
       </main>
-      {!isLoginPage && <Footer />}
+      {!isAuthPage && <Footer />}
     </div>
   );
 }
