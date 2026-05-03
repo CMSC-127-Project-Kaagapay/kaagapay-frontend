@@ -122,26 +122,28 @@ export default function Report() {
           </section>
 
           {/* Emergency Contact */}
-          <div className="bg-secondary text-on-primary rounded-3xl p-8 shadow-xl relative overflow-hidden">
+          <div className="bg-surface-container rounded-3xl p-8 editorial-shadow border border-outline-variant/20 relative overflow-hidden">
             <div className="relative z-10">
-              <h3 className="text-2xl font-black font-headline mb-2">
+              <h3 className="text-xl font-black font-headline mb-2 text-on-surface">
                 Need Immediate Help?
               </h3>
-              <p className="text-sm mb-8 opacity-90 leading-relaxed">
+              <p className="text-sm mb-8 text-on-surface-variant leading-relaxed">
                 If you are currently in danger or require immediate medical
                 attention, please call our 24/7 emergency response team.
               </p>
               <div className="space-y-4">
                 <a
                   href="tel:0822930000"
-                  className="flex items-center justify-between bg-white/10 hover:bg-white/20 p-5 rounded-2xl transition-all group"
+                  className="flex items-center justify-between bg-surface hover:bg-surface-container-low border-outline-variant/30 hover:border-primary/30 p-5 rounded-2xl transition-all group"
                 >
-                  <span className="font-bold">UP Mindanao Security</span>
-                  <span className="font-mono text-tertiary-fixed-dim group-hover:text-white transition-colors">
+                  <span className="font-bold text-on-surface text-sm">
+                    UP Mindanao Security
+                  </span>
+                  <span className="font-mono text-primary font-bold text-sm group-hover:text-white transition-colors">
                     (082) 293-0000
                   </span>
                 </a>
-                <button className="w-full bg-white text-secondary font-extrabold py-4 rounded-2xl hover:bg-surface-container transition-all shadow-lg">
+                <button className="w-full bg-surface text-on-surface font-extrabold py-4 rounded-2xl hover:bg-surface-container-highest transition-all border-outline-variant/20 text-sm">
                   Live Chat Support
                 </button>
               </div>
