@@ -1,9 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Shield, ArrowRight, Handshake, Users, Award, CheckCircle, Info } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { supabase } from '@/src/lib/supabase';
+
+interface Volunteer {
+  id: string;
+  office_id: string;
+  full_name: string;
+  public_allias: string;
+  external_handle: string;
+  status: string;
+  incentive_points: number;
+}
 
 export default function Volunteer() {
+  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchVolunteers() {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('volunteers')
+        .select('*')
+        .eq('status', 'active')
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching volunteers:', error);
+      } else {
+        setVolunteers(data || []);
+      }
+      setLoading(false);
+    }
+
+    fetchVolunteers();
+  }, []);
+
   return (
     <div className="space-y-24 pb-24 pt-20">
       {/* Hero Section */}
@@ -25,9 +64,9 @@ export default function Volunteer() {
               The Kaagapay program is our network of dedicated students and staff trained to provide peer support and advocate for a safe, harassment-free campus environment.
             </p>
             <div className="flex flex-wrap gap-4">
-              <button className="px-10 py-5 bg-primary text-on-primary rounded-2xl font-extrabold text-lg shadow-2xl hover:opacity-90 transition-all active:scale-95">
+              <Link to="/volunteer/apply" className="px-10 py-5 bg-primary text-on-primary rounded-2xl font-extrabold text-lg shadow-2xl hover:opacity-90 transition-all active:scale-95 inline-block">
                 Join the Team
-              </button>
+              </Link>
               <button className="px-10 py-5 bg-surface-container-highest text-primary rounded-2xl font-extrabold text-lg hover:bg-surface-container-high transition-all">
                 Learn More
               </button>
@@ -145,31 +184,41 @@ export default function Volunteer() {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
-          {[
-            { name: 'Mateo Sebastian', role: 'Lead Peer Advocate', college: 'College of Humanities and Social Sciences', img: 'https://i.pravatar.cc/400?u=mateo' },
-            { name: 'Elena Rodriguez', role: 'Response Coordinator', college: 'School of Management', img: 'https://i.pravatar.cc/400?u=elena' },
-            { name: 'Dr. Ricardo Pangilinan', role: 'Staff Consultant', college: 'College of Science and Mathematics', img: 'https://i.pravatar.cc/400?u=ricardo' },
-            { name: 'Sarah Jane Lim', role: 'Student Liaison', college: 'College of Humanities and Social Sciences', img: 'https://i.pravatar.cc/400?u=sarah' },
-          ].map((v, i) => (
-            <motion.div 
-              key={i}
-              whileHover={{ y: -8 }}
-              className="group"
-            >
-              <div className="aspect-square rounded-[2.5rem] overflow-hidden mb-8 relative shadow-xl">
-                <img 
-                  alt={v.name} 
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100" 
-                  src={v.img}
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-[2.5rem]"></div>
-              </div>
-              <h4 className="font-headline text-2xl font-extrabold text-on-surface mb-1">{v.name}</h4>
-              <p className="text-sm text-secondary font-black uppercase tracking-widest mb-2">{v.role}</p>
-              <p className="text-xs text-on-surface-variant font-bold leading-relaxed">{v.college}</p>
-            </motion.div>
-          ))}
+          {loading ? (
+            <div className="col-span-full text-center py-16">
+              <div className="inline-block w-10 h-10 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+              <p className="mt-4 text-on-surface-variant font-medium">Loading volunteers...</p>
+            </div>
+          ) : volunteers.length === 0 ? (
+            <div className="col-span-full text-center py-16">
+              <Users size={48} className="mx-auto text-on-surface-variant/40 mb-4" />
+              <p className="text-on-surface-variant font-medium">No active volunteers found.</p>
+            </div>
+          ) : (
+            volunteers.map((v) => (
+              <motion.div 
+                key={v.id}
+                whileHover={{ y: -8 }}
+                className="group"
+              >
+                <div className="aspect-square rounded-[2.5rem] overflow-hidden mb-8 relative shadow-xl">
+                  <img 
+                    alt={v.full_name} 
+                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100" 
+                    src={`https://i.pravatar.cc/400?u=${v.id}`}
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-[2.5rem]"></div>
+                </div>
+                <h4 className="font-headline text-2xl font-extrabold text-on-surface mb-1">{v.public_allias || v.full_name}</h4>
+                <p className="text-sm text-secondary font-black uppercase tracking-widest mb-2">{v.status}</p>
+                <p className="text-xs text-on-surface-variant font-bold leading-relaxed">{v.external_handle}</p>
+                {v.incentive_points > 0 && (
+                  <p className="text-xs text-primary font-bold mt-1">⭐ {v.incentive_points} pts</p>
+                )}
+              </motion.div>
+            ))
+          )}
         </div>
       </section>
 
@@ -179,9 +228,9 @@ export default function Volunteer() {
           <div className="relative z-10 max-w-2xl mx-auto">
             <h2 className="font-headline text-4xl lg:text-6xl font-extrabold text-white mb-8 tracking-tight">Ready to make a difference?</h2>
             <p className="text-surface-container text-xl mb-12 font-medium leading-relaxed">Join the next cohort of Kaagapay volunteers. Applications for the Fall Semester are now open for all bonafide UP Mindanao students.</p>
-            <button className="bg-white text-primary px-12 py-6 rounded-2xl font-black text-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all ring-8 ring-white/20">
+            <Link to="/volunteer/apply" className="bg-white text-primary px-12 py-6 rounded-2xl font-black text-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all ring-8 ring-white/20 inline-block">
               Apply to Join the Team
-            </button>
+            </Link>
           </div>
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-[30rem] h-[30rem] bg-secondary/20 rounded-full -ml-32 -mb-32 blur-[100px]"></div>
