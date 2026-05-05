@@ -8,6 +8,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from
 import { Navbar, Footer } from './components/Layout';
 import Home from './pages/Home';
 import Volunteer from './pages/Volunteer';
+import VolunteerApplication from './pages/VolunteerApplication';
 import Report from './pages/Report';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
@@ -52,6 +53,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/volunteer" element={<Volunteer />} />
+          <Route path="/volunteer/apply" element={<VolunteerApplication />} />
           <Route path="/report" element={<Report />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
