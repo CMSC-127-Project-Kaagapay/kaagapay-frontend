@@ -11,6 +11,7 @@ import {
   Phone,
   ArrowRight,
   Users,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 
@@ -47,34 +48,44 @@ export default function Report() {
             </h2>
 
             <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
-              <div className="space-y-4">
-                <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                  Nature of Incident
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {[
-                    "Harassment",
-                    "Discrimination",
-                    "Stalking",
-                    "Physical Harm",
-                    "Other",
-                  ].map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      className="px-4 py-3 rounded-xl border border-outline-variant/30 bg-surface text-sm font-semibold hover:bg-secondary-container hover:text-on-secondary-container transition-all text-left flex items-center justify-between group"
-                    >
-                      {type}
-                      <ArrowRight
-                        size={14}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Demographic */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                    Demographic
+                  </label>
+                  <div className="relative">
+                    <Users
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
+                      size={18}
+                    />
+                    <input
+                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
+                      placeholder="e.g. Youth, Adult, Senior"
+                      type="text"
+                    />
+                  </div>
+                </div>
+
+                {/* Involved Party */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                    Involved Party
+                  </label>
+                  <div className="relative">
+                    <UserCircle
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
+                      size={18}
+                    />
+                    <input
+                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
+                      placeholder="e.g. Student, Faculty, Staff"
+                      type="text"
+                    />
+                  </div>
+                </div>
+
+                {/* Date & Time */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
                     Date & Time
@@ -90,9 +101,11 @@ export default function Report() {
                     />
                   </div>
                 </div>
+
+                {/* Locality */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                    Location
+                    Locality
                   </label>
                   <div className="relative">
                     <MapPin
@@ -101,7 +114,7 @@ export default function Report() {
                     />
                     <input
                       className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
-                      placeholder="Campus location or online"
+                      placeholder="e.g. Inside UP Campus, Outside"
                       type="text"
                     />
                   </div>
