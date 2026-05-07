@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { 
   TrendingDown, 
   CheckCircle, 
@@ -13,8 +13,71 @@ import {
   Lock
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
+import { 
+  getVolunteerApplications, 
+  approveVolunteerApplication, 
+  rejectVolunteerApplication,
+  VolunteerApplicationResponseDto // Import DTO from api.ts
+} from '@/src/lib/api'; // Import API functions from api.ts
 
 export default function Admin() {
+  const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchVolunteerApplications() {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = getAuthToken();
+        if (!token) {
+          setError("Authentication token not found. Please log in as an administrator.");
+          setLoading(false);
+          return;
+        }
+
+        const data = await getVolunteerApplications(token); // Use the API function
+        setVolunteerApplications(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchVolunteerApplications();
+  }, []);
+
+  const handleAction = async (application_id: string, action: 'approve' | 'reject') => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        alert("Authentication token not found. Please log in as an administrator.");
+        return;
+      }
+
+      if (action === 'approve') {
+        await approveVolunteerApplication(application_id, token); // Use the API function
+      } else {
+        await rejectVolunteerApplication(application_id, token); // Use the API function
+      }
+
+      // Update the status of the application in the local state
+      setVolunteerApplications(prevApps =>
+        prevApps.map(app =>
+          app.application_id === application_id ? { ...app, status: action === 'approve' ? 'approved' : 'rejected' } : app
+        )
+      );
+    } catch (err: any) {
+      alert(`Error ${action}ing application: ${err.message}`);
+    }
+  };
+
+  const handleApprove = (application_id: string) => handleAction(application_id, 'approve');
+  const handleReject = (application_id: string) => handleAction(application_id, 'reject');
+
   return (
     <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto space-y-12">
       {/* Admin Header */}
@@ -99,69 +162,81 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Action Required Table */}
-      <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
-        <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-            <h2 className="text-2xl font-bold font-headline text-on-surface">Action Required</h2>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-4 py-2 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-full">New (3)</span>
-              <span className="px-4 py-2 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-full">In Progress (8)</span>
-              <span className="px-4 py-2 bg-surface-container-high text-on-surface-variant text-xs font-bold rounded-full">Flagged (1)</span>
+      {loading && <p className="text-on-surface-variant text-center">Loading volunteer applications...</p>}
+      {error && <p className="text-error text-center">{error}</p>}
+
+      {!loading && !error && volunteerApplications.length === 0 && (
+        <p className="text-on-surface-variant text-center">No volunteer applications pending review.</p>
+      )}
+
+      {!loading && !error && volunteerApplications.length > 0 && (
+        <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+          <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+              <h2 className="text-2xl font-bold font-headline text-on-surface">Volunteer Applications ({volunteerApplications.filter(app => app.status === 'pending').length} pending)</h2>
             </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-separate border-spacing-y-4">
-              <thead>
-                <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
-                  <th className="px-6 pb-2">Case ID</th>
-                  <th className="px-6 pb-2">Category</th>
-                  <th className="px-6 pb-2">Submission Date</th>
-                  <th className="px-6 pb-2">Status</th>
-                  <th className="px-6 pb-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { id: '#UM-2024-089', cat: 'Harassment Incident', date: 'Oct 24, 2024', status: 'In Progress', color: 'secondary' },
-                  { id: '#UM-2024-092', cat: 'Academic Grievance', date: 'Oct 26, 2024', status: 'Unassigned', color: 'tertiary' },
-                  { id: '#UM-2024-094', cat: 'Safe Space Violation', date: 'Oct 27, 2024', status: 'Urgent', color: 'error' },
-                ].map((row, i) => (
-                  <tr key={i} className="bg-surface-container-low transition-all hover:bg-white group cursor-pointer">
-                    <td className="px-6 py-6 rounded-l-3xl font-bold text-primary">{row.id}</td>
-                    <td className="px-6 py-6 text-on-surface font-semibold">{row.cat}</td>
-                    <td className="px-6 py-6 text-on-surface-variant font-medium">{row.date}</td>
-                    <td className="px-6 py-6">
-                      <span className={cn(
-                        "flex items-center gap-2 font-bold text-sm",
-                        row.status === 'Urgent' ? "text-error" : row.status === 'In Progress' ? "text-secondary" : "text-on-surface-variant"
-                      )}>
-                        <span className={cn("w-2 h-2 rounded-full", 
-                          row.status === 'Urgent' ? "bg-error" : row.status === 'In Progress' ? "bg-secondary" : "bg-outline-variant"
-                        )}></span>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-6 rounded-r-3xl text-right">
-                      <button className="text-primary font-bold text-sm opacity-0 group-hover:opacity-100 transition-all flex items-center gap-2 ml-auto">
-                        Review Details <ArrowRight size={14} />
-                      </button>
-                    </td>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-separate border-spacing-y-4">
+                <thead>
+                  <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
+                    <th className="px-6 pb-2">Applicant</th>
+                    <th className="px-6 pb-2">Email</th>
+                    <th className="px-6 pb-2">Motivation</th>
+                    <th className="px-6 pb-2">Status</th>
+                    <th className="px-6 pb-2 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {volunteerApplications.map((app) => (
+                    <tr key={app.application_id} className="bg-surface-container-low transition-all hover:bg-white group cursor-pointer">
+                      <td className="px-6 py-6 rounded-l-3xl font-bold text-primary">{`${app.first_name} ${app.last_name} (${app.public_alias})`}</td>
+                      <td className="px-6 py-6 text-on-surface font-semibold">{app.email}</td>
+                      <td className="px-6 py-6 text-on-surface-variant font-medium max-w-xs truncate">{app.motivation}</td>
+                      <td className="px-6 py-6">
+                        <span className={cn(
+                          "flex items-center gap-2 font-bold text-sm",
+                          app.status === 'pending' ? "text-secondary" : app.status === 'approved' ? "text-primary" : "text-error"
+                        )}>
+                          <span className={cn("w-2 h-2 rounded-full", 
+                            app.status === 'pending' ? "bg-secondary" : app.status === 'approved' ? "bg-primary" : "bg-error"
+                          )}></span>
+                          {app.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-6 rounded-r-3xl text-right">
+                        {app.status === 'pending' && (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleApprove(app.application_id)}
+                              className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
+                              title="Approve"
+                            >
+                              <CheckCircle size={20} />
+                            </button>
+                            <button
+                              onClick={() => handleReject(app.application_id)}
+                              className="p-2 rounded-full bg-error/10 text-error hover:bg-error hover:text-white transition-colors"
+                              title="Reject"
+                            >
+                              <AlertCircle size={20} />
+                            </button>
+                          </div>
+                        )}
+                        {app.status !== 'pending' && (
+                          <span className="text-on-surface-variant text-sm font-medium">Actioned</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Removed "View All Active Reports" button as it's not relevant here */}
           </div>
-          
-          <div className="mt-10 flex justify-center">
-            <button className="text-on-surface-variant hover:text-primary font-bold text-sm flex items-center gap-2 transition-colors uppercase tracking-widest">
-              View All Active Reports
-              <ArrowRight size={16} />
-            </button>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Administrative Toolkit */}
       <section className="space-y-8">

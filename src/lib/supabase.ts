@@ -16,4 +16,3 @@ if (supabaseUrl && supabaseKey) {
 }
 
 export { supabase };
-
