@@ -13,36 +13,13 @@ import {
   Lock
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-
-// Define the VolunteerApplicationResponseDto interface
-interface VolunteerApplicationResponseDto {
-  application_id: string;
-  first_name: string;
-  last_name: string;
-  motivation: string;
-  public_alias: string;
-  email: string;
-  external_handle: string;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  updated_at: string;
-}
-
-// Placeholder for authentication token retrieval
-// This should be replaced with actual logic based on your authentication setup (e.g., from local storage, context, or a utility function)
-function getAuthToken(): string | null {
-  const authDataString = localStorage.getItem('sb-sjsgbvfpgxniweyvxemp-auth-token');
-  if (authDataString) {
-    try {
-      const authData = JSON.parse(authDataString);
-      return authData.access_token || null;
-    } catch (e) {
-      console.error("Failed to parse auth data from localStorage", e);
-      return null;
-    }
-  }
-  return null;
-}
+import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
+import { 
+  getVolunteerApplications, 
+  approveVolunteerApplication, 
+  rejectVolunteerApplication,
+  VolunteerApplicationResponseDto // Import DTO from api.ts
+} from '@/src/lib/api'; // Import API functions from api.ts
 
 export default function Admin() {
   const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
@@ -61,18 +38,7 @@ export default function Admin() {
           return;
         }
 
-        const response = await fetch('http://localhost:8000/volunteer-applications', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || 'Failed to fetch volunteer applications.');
-        }
-
-        const data: VolunteerApplicationResponseDto[] = await response.json();
+        const data = await getVolunteerApplications(token); // Use the API function
         setVolunteerApplications(data);
       } catch (err: any) {
         setError(err.message);
@@ -92,17 +58,10 @@ export default function Admin() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/volunteer-applications/${application_id}/${action}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Failed to ${action} application.`);
+      if (action === 'approve') {
+        await approveVolunteerApplication(application_id, token); // Use the API function
+      } else {
+        await rejectVolunteerApplication(application_id, token); // Use the API function
       }
 
       // Update the status of the application in the local state

@@ -1,16 +1,7 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion'; // Changed from 'motion/react' to 'framer-motion'
+import { motion } from 'framer-motion';
 import { Shield, Megaphone, FileCheck, ShieldCheck, CheckCircle, Loader2 } from 'lucide-react';
-// import { supabase } from '@/src/lib/supabase'; // Removed as submission will be to backend API
-
-interface ApplicationForm {
-  first_name: string;
-  last_name: string;
-  motivation: string;
-  public_alias: string;
-  email: string;
-  external_handle: string;
-}
+import { submitVolunteerApplication, ApplicationForm } from '@/src/lib/api'; // Import from api.ts
 
 const initialForm: ApplicationForm = {
   first_name: '',
@@ -53,19 +44,7 @@ export default function VolunteerApplication() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/volunteer-applications', { // Assuming backend runs on localhost:8000
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(form),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to submit application.');
-      }
-
+      await submitVolunteerApplication(form); // Use the API function
       setSubmitted(true);
       setForm(initialForm); // Clear form after successful submission
     } catch (err: any) {
