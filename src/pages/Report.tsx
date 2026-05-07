@@ -1,4 +1,5 @@
 import React from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import {
   Shield,
@@ -156,9 +157,9 @@ export default function Report() {
                     (082) 293-0000
                   </span>
                 </a>
-                <button className="w-full bg-surface text-on-surface font-extrabold py-4 rounded-2xl hover:bg-surface-container-highest transition-all border-outline-variant/20 text-sm">
+                {/* <button className="w-full bg-surface text-on-surface font-extrabold py-4 rounded-2xl hover:bg-surface-container-highest transition-all border-outline-variant/20 text-sm">
                   Live Chat Support
-                </button>
+                </button> */}
               </div>
             </div>
           </div>
