@@ -1,29 +1,27 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion'; // Changed from 'motion/react' to 'framer-motion'
 import { Shield, Megaphone, FileCheck, ShieldCheck, CheckCircle, Loader2 } from 'lucide-react';
-import { supabase } from '@/src/lib/supabase';
+// import { supabase } from '@/src/lib/supabase'; // Removed as submission will be to backend API
 
 interface ApplicationForm {
-  full_name: string;
-  student_id: string;
-  email: string;
-  mobile: string;
-  interest: string;
+  first_name: string;
+  last_name: string;
   motivation: string;
-  agreed_to_terms: boolean;
+  public_alias: string;
+  email: string;
+  external_handle: string;
 }
 
 const initialForm: ApplicationForm = {
-  full_name: '',
-  student_id: '',
-  email: '',
-  mobile: '',
-  interest: '',
+  first_name: '',
+  last_name: '',
   motivation: '',
-  agreed_to_terms: false,
+  public_alias: '',
+  email: '',
+  external_handle: '',
 };
 
-const interestOptions = ['Advocacy', 'Creative Content', 'Secretariat', 'Outreach'];
+
 
 export default function VolunteerApplication() {
   const [form, setForm] = useState<ApplicationForm>(initialForm);
@@ -32,67 +30,49 @@ export default function VolunteerApplication() {
   const [error, setError] = useState<string | null>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
-    const { name, value, type } = e.target;
-    if (type === 'checkbox') {
-      setForm(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
-    } else {
-      setForm(prev => ({ ...prev, [name]: value }));
-    }
-  }
-
-  function handleInterestSelect(interest: string) {
-    setForm(prev => ({ ...prev, interest }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    if (!form.full_name || !form.student_id || !form.email || !form.interest || !form.motivation) {
-      setError('Please fill out all required fields.');
-      return;
-    }
-    if (!form.agreed_to_terms) {
-      setError('You must agree to the terms before submitting.');
-      return;
-    }
-
-    setSubmitting(true);
-
-    if (!supabase) {
-      setError('Supabase is not configured. Please set up your .env file.');
-      setSubmitting(false);
-      return;
-    }
-
-    const { error: supabaseError } = await supabase
-      .from('volunteer_applications')
-      .insert([
-        {
-          full_name: form.full_name,
-          student_id: form.student_id,
-          email: form.email,
-          mobile: form.mobile,
-          interest: form.interest,
-          motivation: form.motivation,
-        },
-      ]);
-
-    if (supabaseError) {
-      console.error('Supabase error:', supabaseError);
-      setError('Something went wrong. Please try again later.');
-      setSubmitting(false);
-      return;
-    }
-
-    setSubmitting(false);
-    setSubmitted(true);
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
   }
 
   function handleDiscard() {
     setForm(initialForm);
-    setError(null);
     setSubmitted(false);
+    setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    // Basic client-side validation
+    if (!form.first_name || !form.last_name || !form.email || !form.public_alias || !form.motivation) {
+      setError('Please fill in all required fields.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:8000/volunteer-applications', { // Assuming backend runs on localhost:8000
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to submit application.');
+      }
+
+      setSubmitted(true);
+      setForm(initialForm); // Clear form after successful submission
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -238,32 +218,32 @@ export default function VolunteerApplication() {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Full Name */}
+                {/* First Name */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
-                    Full Name <span className="text-error">*</span>
+                    First Name <span className="text-error">*</span>
                   </label>
                   <input
-                    name="full_name"
+                    name="first_name"
                     type="text"
-                    value={form.full_name}
+                    value={form.first_name}
                     onChange={handleChange}
-                    placeholder="Juan Dela Cruz"
+                    placeholder="Juan"
                     className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none"
                   />
                 </div>
 
-                {/* Student ID */}
+                {/* Last Name */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
-                    Student / Employee ID <span className="text-error">*</span>
+                    Last Name <span className="text-error">*</span>
                   </label>
                   <input
-                    name="student_id"
+                    name="last_name"
                     type="text"
-                    value={form.student_id}
+                    value={form.last_name}
                     onChange={handleChange}
-                    placeholder="202X-XXXXX"
+                    placeholder="Dela Cruz"
                     className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none"
                   />
                 </div>
@@ -271,54 +251,46 @@ export default function VolunteerApplication() {
                 {/* Email */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
-                    UP Email Address <span className="text-error">*</span>
+                    Email Address <span className="text-error">*</span>
                   </label>
                   <input
                     name="email"
                     type="email"
                     value={form.email}
                     onChange={handleChange}
-                    placeholder="username@up.edu.ph"
+                    placeholder="juan.delacruz@example.com"
                     className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none"
                   />
                 </div>
 
-                {/* Mobile */}
+                {/* Public Alias */}
                 <div className="flex flex-col gap-2">
                   <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
-                    Mobile Number
+                    Public Alias (Nickname) <span className="text-error">*</span>
                   </label>
                   <input
-                    name="mobile"
-                    type="tel"
-                    value={form.mobile}
+                    name="public_alias"
+                    type="text"
+                    value={form.public_alias}
                     onChange={handleChange}
-                    placeholder="+63 9XX XXX XXXX"
+                    placeholder="VolunteerJuan"
                     className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none"
                   />
                 </div>
-              </div>
 
-              {/* Primary Area of Interest */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
-                  Primary Area of Interest <span className="text-error">*</span>
-                </label>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {interestOptions.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => handleInterestSelect(option)}
-                      className={`px-6 py-3 rounded-full border transition-all font-medium text-sm ${
-                        form.interest === option
-                          ? 'bg-secondary-container text-on-secondary-container font-bold border-secondary/30 shadow-sm'
-                          : 'bg-surface-container-low border-transparent text-on-surface-variant hover:bg-surface-container'
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
+                {/* External Handle */}
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <label className="text-xs font-bold tracking-widest uppercase text-on-surface-variant px-1">
+                    External Handle (e.g., Social Media, Messenger)
+                  </label>
+                  <input
+                    name="external_handle"
+                    type="text"
+                    value={form.external_handle}
+                    onChange={handleChange}
+                    placeholder="facebook.com/juan.dc"
+                    className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none"
+                  />
                 </div>
               </div>
 
@@ -335,20 +307,6 @@ export default function VolunteerApplication() {
                   placeholder="Share your motivation and any relevant experiences..."
                   className="bg-surface-container-low border-none rounded-xl p-4 text-on-surface focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-outline-variant outline-none resize-none"
                 />
-              </div>
-
-              {/* Terms Checkbox */}
-              <div className="flex items-start gap-4 p-4 bg-surface-container-low/50 rounded-xl">
-                <input
-                  name="agreed_to_terms"
-                  type="checkbox"
-                  checked={form.agreed_to_terms}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded-md border-outline-variant text-primary focus:ring-primary mt-0.5 flex-shrink-0"
-                />
-                <span className="text-sm text-on-surface-variant font-medium leading-relaxed">
-                  I understand that volunteering for OASH requires maintaining strict confidentiality and attending mandatory orientation.
-                </span>
               </div>
 
               {/* Buttons */}
