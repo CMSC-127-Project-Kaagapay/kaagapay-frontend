@@ -21,7 +21,7 @@ interface VolunteerRecord {
 /** Resolves a Supabase Storage object key to its public URL. */
 function getProfileImageUrl(key: string | null): string {
   if (!key || !supabase) {
-    return `https://i.pravatar.cc/400?u=fallback`;
+    return `https://img.icons8.com/?size=100&id=NPW07SMh7Aco&format=png&color=000000`;
   }
   const { data } = supabase.storage
     .from('avatars')
