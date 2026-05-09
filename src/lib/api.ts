@@ -28,7 +28,7 @@ export interface ReportForm {
   demographic: string;
   involved_party: string;
   locality: string;
-  routing_type: "any" | "specific";
+  routing_type: "random" | "specific";
   selected_volunteer_id: string | null;
 }
 
