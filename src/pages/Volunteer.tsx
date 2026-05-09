@@ -1,43 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Shield, ArrowRight, Handshake, Users, Award, CheckCircle, Info } from 'lucide-react';
+import { Shield, ArrowRight, Handshake, Users, Award, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { supabase } from '@/src/lib/supabase';
 
-interface Volunteer {
+interface VolunteerRecord {
   id: string;
-  office_id: string;
-  full_name: string;
-  public_allias: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  public_alias: string;
   external_handle: string;
   status: string;
   incentive_points: number;
+  office_id: string | null;
+  profile_image_key: string | null;
+}
+
+/** Resolves a Supabase Storage object key to its public URL. */
+function getProfileImageUrl(key: string | null): string {
+  if (!key || !supabase) {
+    return `https://img.icons8.com/?size=100&id=NPW07SMh7Aco&format=png&color=000000`;
+  }
+  const { data } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(key);
+  return data.publicUrl;
 }
 
 export default function Volunteer() {
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [volunteers, setVolunteers] = useState<VolunteerRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchVolunteers() {
       if (!supabase) {
+        setError('Supabase client is not configured. Check your environment variables.');
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('volunteers')
-        .select('*')
-        .eq('status', 'active')
-        .order('full_name', { ascending: true });
+      try {
+        // DEBUG: Fetch ALL volunteers without status filter to diagnose the issue
+        const { data, error: fetchError } = await supabase
+          .from('volunteers')
+          .select('*')
+          .order('first_name', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching volunteers:', error);
-      } else {
-        setVolunteers(data || []);
+        console.log('[DEBUG] Supabase response:', { data, fetchError });
+        console.log('[DEBUG] Volunteer count:', data?.length);
+        if (data?.length) {
+          console.log('[DEBUG] First volunteer:', data[0]);
+          console.log('[DEBUG] Status values:', data.map((v: any) => v.status));
+          console.log('[DEBUG] Column names:', Object.keys(data[0]));
+        }
+
+        if (fetchError) {
+          console.error('Error fetching volunteers:', fetchError);
+          setError(fetchError.message);
+        } else {
+          setVolunteers(data || []);
+        }
+      } catch (err) {
+        console.error('Unexpected error fetching volunteers:', err);
+        setError('An unexpected error occurred while loading volunteers.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     fetchVolunteers();
@@ -49,7 +80,7 @@ export default function Volunteer() {
       <section className="relative py-24 overflow-hidden">
         <div className="absolute inset-0 aura-gradient opacity-5 -z-10"></div>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="space-y-8"
@@ -58,7 +89,7 @@ export default function Volunteer() {
               The Kaagapay Program
             </span>
             <h1 className="font-headline text-5xl lg:text-7xl font-extrabold text-primary leading-tight tracking-tighter">
-              Compassion in <br/>Institutional Service.
+              Compassion in <br />Institutional Service.
             </h1>
             <p className="text-lg text-on-surface-variant max-w-lg leading-relaxed font-medium">
               The Kaagapay program is our network of dedicated students and staff trained to provide peer support and advocate for a safe, harassment-free campus environment.
@@ -72,16 +103,16 @@ export default function Volunteer() {
               </button>
             </div>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="relative"
           >
             <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl relative ring-8 ring-white/50">
-              <img 
-                alt="Collaborative meeting" 
-                className="w-full h-full object-cover" 
+              <img
+                alt="Collaborative meeting"
+                className="w-full h-full object-cover"
                 src="https://picsum.photos/seed/volunteer-hero/800/1000"
                 referrerPolicy="no-referrer"
               />
@@ -105,7 +136,7 @@ export default function Volunteer() {
             <h2 className="font-headline text-4xl font-extrabold text-primary mb-4 tracking-tight">Why Volunteer?</h2>
             <div className="w-20 h-2 bg-secondary rounded-full"></div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2 bg-surface-container-lowest rounded-[3rem] p-12 flex flex-col justify-between editorial-shadow border border-outline-variant/10 group hover:border-secondary/30 transition-all">
               <div>
@@ -122,7 +153,7 @@ export default function Volunteer() {
                 <span className="px-4 py-2 bg-surface-container rounded-full text-xs font-bold uppercase tracking-widest text-on-surface-variant">Certification</span>
               </div>
             </div>
-            
+
             <div className="bg-primary text-on-primary rounded-[3rem] p-12 flex flex-col justify-center relative overflow-hidden shadow-xl">
               <div className="relative z-10">
                 <h3 className="font-headline text-2xl font-bold mb-4">The Impact</h3>
@@ -131,7 +162,7 @@ export default function Volunteer() {
               </div>
               <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
             </div>
-            
+
             <div className="bg-secondary text-on-primary rounded-[3rem] p-12 flex flex-col justify-between shadow-xl">
               <Users size={48} className="opacity-40" />
               <div>
@@ -139,12 +170,12 @@ export default function Volunteer() {
                 <p className="text-lg opacity-90 leading-relaxed font-medium">Join a family of advocates committed to social justice and academic safety across the entire campus.</p>
               </div>
             </div>
-            
+
             <div className="md:col-span-2 bg-surface-container-lowest rounded-[3rem] p-12 flex flex-col md:flex-row items-center gap-12 editorial-shadow border border-outline-variant/10">
               <div className="hidden lg:block w-40 h-40 rounded-full overflow-hidden flex-shrink-0 ring-8 ring-surface-container">
-                <img 
-                  alt="Group discussion" 
-                  className="w-full h-full object-cover" 
+                <img
+                  alt="Group discussion"
+                  className="w-full h-full object-cover"
                   src="https://picsum.photos/seed/join-team/400/400"
                   referrerPolicy="no-referrer"
                 />
@@ -170,7 +201,7 @@ export default function Volunteer() {
           </div>
           <div className="flex flex-wrap gap-2">
             {['All Colleges', 'CHSS', 'CSM', 'SOM'].map((c, i) => (
-              <button 
+              <button
                 key={c}
                 className={cn(
                   "px-6 py-2.5 rounded-full text-sm font-extrabold transition-all",
@@ -182,12 +213,18 @@ export default function Volunteer() {
             ))}
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
           {loading ? (
             <div className="col-span-full text-center py-16">
               <div className="inline-block w-10 h-10 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
               <p className="mt-4 text-on-surface-variant font-medium">Loading volunteers...</p>
+            </div>
+          ) : error ? (
+            <div className="col-span-full text-center py-16">
+              <AlertTriangle size={48} className="mx-auto text-error mb-4" />
+              <p className="text-on-surface font-bold mb-2">Failed to load volunteers</p>
+              <p className="text-on-surface-variant font-medium text-sm max-w-md mx-auto">{error}</p>
             </div>
           ) : volunteers.length === 0 ? (
             <div className="col-span-full text-center py-16">
@@ -195,29 +232,35 @@ export default function Volunteer() {
               <p className="text-on-surface-variant font-medium">No active volunteers found.</p>
             </div>
           ) : (
-            volunteers.map((v) => (
-              <motion.div 
-                key={v.id}
-                whileHover={{ y: -8 }}
-                className="group"
-              >
-                <div className="aspect-square rounded-[2.5rem] overflow-hidden mb-8 relative shadow-xl">
-                  <img 
-                    alt={v.full_name} 
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100" 
-                    src={`https://i.pravatar.cc/400?u=${v.id}`}
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-[2.5rem]"></div>
-                </div>
-                <h4 className="font-headline text-2xl font-extrabold text-on-surface mb-1">{v.public_allias || v.full_name}</h4>
-                <p className="text-sm text-secondary font-black uppercase tracking-widest mb-2">{v.status}</p>
-                <p className="text-xs text-on-surface-variant font-bold leading-relaxed">{v.external_handle}</p>
-                {v.incentive_points > 0 && (
-                  <p className="text-xs text-primary font-bold mt-1">⭐ {v.incentive_points} pts</p>
-                )}
-              </motion.div>
-            ))
+            volunteers.map((v) => {
+              const fullName = `${v.first_name} ${v.last_name}`;
+              const displayName = v.public_alias || fullName;
+              const avatarSrc = getProfileImageUrl(v.profile_image_key);
+
+              return (
+                <motion.div
+                  key={v.id}
+                  whileHover={{ y: -8 }}
+                  className="group"
+                >
+                  <div className="aspect-square rounded-[2.5rem] overflow-hidden mb-8 relative shadow-xl">
+                    <img
+                      alt={fullName}
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100"
+                      src={avatarSrc}
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-[2.5rem]"></div>
+                  </div>
+                  <h4 className="font-headline text-2xl font-extrabold text-on-surface mb-1">{displayName}</h4>
+                  <p className="text-sm text-secondary font-black uppercase tracking-widest mb-2">{v.status}</p>
+                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed">{v.external_handle}</p>
+                  {v.incentive_points > 0 && (
+                    <p className="text-xs text-primary font-bold mt-1">⭐ {v.incentive_points} pts</p>
+                  )}
+                </motion.div>
+              );
+            })
           )}
         </div>
       </section>
