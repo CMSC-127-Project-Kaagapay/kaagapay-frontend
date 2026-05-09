@@ -26,7 +26,8 @@ const initialForm: ReportForm = {
   demographic: "",
   involved_party: "",
   locality: "",
-  volunteer_id: null,
+  routing_type: "any",
+  selected_volunteer_id: null,
 };
 
 export default function Report() {
@@ -115,7 +116,8 @@ export default function Report() {
     try {
       const result = await submitReport({
         ...form,
-        volunteer_id: selectedVolunteerId,
+        routing_type: selectedVolunteerId === null ? "any" : "specific",
+        selected_volunteer_id: selectedVolunteerId ?? null,
       });
       setCaseResult({
         public_case_id: result.public_case_id,
@@ -285,7 +287,10 @@ export default function Report() {
                       size={18}
                     />
                     <input
-                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
+                      name="demographic"
+                      value={form.demographic}
+                      onChange={handleChange}
+                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
                       placeholder="e.g. Youth, Adult, Senior"
                       type="text"
                     />
@@ -303,7 +308,10 @@ export default function Report() {
                       size={18}
                     />
                     <input
-                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
+                      name="involved_party"
+                      value={form.involved_party}
+                      onChange={handleChange}
+                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
                       placeholder="e.g. Student, Faculty, Staff"
                       type="text"
                     />
@@ -338,7 +346,10 @@ export default function Report() {
                       size={18}
                     />
                     <input
-                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
+                      name="locality"
+                      value={form.locality}
+                      onChange={handleChange}
+                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
                       placeholder="e.g. Inside UP Campus, Outside"
                       type="text"
                     />
