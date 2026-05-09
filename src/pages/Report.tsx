@@ -26,7 +26,7 @@ const initialForm: ReportForm = {
   demographic: "",
   involved_party: "",
   locality: "",
-  routing_type: "any",
+  routing_type: "random",
   selected_volunteer_id: null,
 };
 
@@ -116,7 +116,7 @@ export default function Report() {
     try {
       const result = await submitReport({
         ...form,
-        routing_type: selectedVolunteerId === null ? "any" : "specific",
+        routing_type: selectedVolunteerId === null ? "random" : "specific",
         selected_volunteer_id: selectedVolunteerId ?? null,
       });
       setCaseResult({
