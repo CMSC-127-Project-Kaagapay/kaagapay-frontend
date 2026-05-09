@@ -28,7 +28,8 @@ export interface ReportForm {
   demographic: string;
   involved_party: string;
   locality: string;
-  volunteer_id: string | null; // null means "any available"
+  routing_type: "any" | "specific";
+  selected_volunteer_id: string | null;
 }
 
 export interface ReportResponseDto {
@@ -153,11 +154,9 @@ export async function rejectVolunteerApplication(
 export async function submitReport(
   reportData: ReportForm,
 ): Promise<ReportResponseDto> {
-  const response = await fetch(`${API_BASE_URL}/reports`, {
+  const response = await fetch(`${API_BASE_URL}/incidents`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(reportData),
   });
   return handleApiResponse(response);
