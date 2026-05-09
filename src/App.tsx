@@ -13,6 +13,9 @@ import Report from './pages/Report';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
+import VolunteerDashboard from './pages/VolunteerDashboard';
+import VolunteerProfile from './pages/VolunteerProfile';
+import TrackCase from './pages/TrackCase';
 import { supabase } from './lib/supabase';
 
 function AppContent() {
@@ -57,6 +60,9 @@ function AppContent() {
           <Route path="/report" element={<Report />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/volunteer/dashboard" element={<VolunteerDashboard />} />
+          <Route path="/volunteer/profile" element={<VolunteerProfile />} />
+          <Route path="/track" element={<TrackCase />} />
           <Route path="/set-password" element={<SetPassword />} />
         </Routes>
       </main>
