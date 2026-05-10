@@ -15,6 +15,15 @@ import { cn } from "@/src/lib/utils";
 import communityPhoto from "../assets/community_support.jpg";
 import heroPhoto from "../assets/hero_bg.png";
 
+interface HelpItem {
+  icon: React.ElementType;
+  title: string;
+  desc: string;
+  color: string;
+  path?: string;
+  highlight?: boolean;
+}
+
 export default function Home() {
   const navigate = useNavigate();
 
@@ -210,22 +219,24 @@ export default function Home() {
                   title: "Join as a Volunteer",
                   desc: "Become a Kaagapay responder and support your peers.",
                   color: "primary",
-                  path: "/volunteer"
+                  path: "/volunteer",
+                  highlight: false
                 },
                 {
                   icon: Shield,
                   title: "Report an Incident",
                   desc: "Safe, secure, and confidential reporting channel.",
                   color: "secondary",
-                  path: "/report"
+                  path: "/report",
                 },
                 {
                   icon: BookOpen,
                   title: "Policy Handbook",
                   desc: "Read the full University Code of Conduct.",
                   color: "tertiary",
+                  highlight: false
                 },
-              ].map((item, idx) => (
+              ].map((item: HelpItem, idx) => (
                 <motion.div
                   key={idx}
                   onClick={() => item.path && navigate(item.path)}
