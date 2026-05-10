@@ -237,12 +237,20 @@ export default function Home() {
                   title: "Policy Handbook",
                   desc: "Read the full University Code of Conduct.",
                   color: "tertiary",
+                  path: "https://upmin.edu.ph/students/student-handbook/",
                   highlight: false
                 },
               ].map((item: HelpItem, idx) => (
                 <motion.div
                   key={idx}
-                  onClick={() => item.path && navigate(item.path)}
+                  onClick={() => {
+                    if (!item.path) return;
+                    if (item.path.startsWith('http')) {
+                      window.open(item.path, '_blank', 'noopener,noreferrer');
+                    } else {
+                      navigate(item.path);
+                    }
+                  }}
                   whileHover={{ y: -4 }}
                   className={cn(
                     "group flex items-center p-8 bg-surface-container-lowest rounded-3xl cursor-pointer transition-all editorial-shadow",

@@ -71,7 +71,7 @@ export default function VolunteerApplication() {
             Shape a safer campus, <span className="text-primary italic">one step</span> at a time.
           </h1>
           <p className="text-lg text-on-surface-variant leading-relaxed font-medium">
-            The Office against Sexual Harassment (OASH) is looking for dedicated students and staff to help foster a culture of respect, safety, and empowerment within UP Mindanao.
+            Real change starts with us. We invite passionate individuals to help foster a campus environment rooted in dignity and free from harassment. Your dedication can help make UP Mindanao a safer home for all.
           </p>
         </motion.div>
 
