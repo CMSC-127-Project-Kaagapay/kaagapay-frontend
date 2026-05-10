@@ -66,7 +66,10 @@ export default function Home() {
                 <Shield size={20} />
                 File a Report
               </button>
-              <button className="px-8 py-4 bg-transparent border-2 border-white/40 text-white font-bold rounded-full hover:bg-white/10 transition-all backdrop-blur-sm">
+              <button 
+                onClick={() => document.getElementById('commitment')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-transparent border-2 border-white/40 text-white font-bold rounded-full hover:bg-white/10 transition-all backdrop-blur-sm"
+              >
                 Learn About Kaagapay
               </button>
             </div>
@@ -122,7 +125,7 @@ export default function Home() {
       </section>
 
       {/* Commitment Section */}
-      <section className="max-w-7xl mx-auto px-8">
+      <section id="commitment" className="max-w-7xl mx-auto px-8">
         <div className="mb-16">
           <h2 className="text-4xl font-extrabold font-headline text-secondary mb-4">
             Our Institutional Commitment
