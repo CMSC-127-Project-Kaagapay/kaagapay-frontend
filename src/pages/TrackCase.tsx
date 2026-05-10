@@ -14,7 +14,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
-import { getSpecificIncident, IncidentTicketResponseDto } from "@/src/lib/api";
+import { getSpecificIncident, getVolunteerProfile, IncidentTicketResponseDto } from "@/src/lib/api";
 
 export default function TrackCase() {
   const [searchParams] = useSearchParams();
@@ -22,6 +22,7 @@ export default function TrackCase() {
   
   const [caseId, setCaseId] = useState(tokenFromUrl);
   const [ticket, setTicket] = useState<IncidentTicketResponseDto | null>(null);
+  const [volunteerName, setVolunteerName] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,6 +33,17 @@ export default function TrackCase() {
       setError("");
       const data = await getSpecificIncident(id);
       setTicket(data);
+      
+      // If a volunteer is assigned, fetch their name/alias separately
+      if (data.assigned_volunteer_id) {
+        try {
+          const vol = await getVolunteerProfile(data.assigned_volunteer_id);
+          setVolunteerName(vol.public_alias || `${vol.first_name} ${vol.last_name}`);
+        } catch (volErr) {
+          console.error("Could not fetch volunteer profile:", volErr);
+          setVolunteerName("A volunteer");
+        }
+      }
     } catch (err) {
       console.error("Error tracking case:", err);
       setError("Case ID not found. Please double-check your token.");
@@ -180,26 +192,46 @@ export default function TrackCase() {
                 </div>
 
                 <div className={cn(
-                  "rounded-[2.5rem] p-8 flex flex-col justify-center items-center text-center transition-all",
-                  ticket.assigned_volunteer_handle 
+                  "rounded-[2.5rem] p-8 flex flex-col justify-center items-center text-center transition-all min-h-[300px]",
+                  ticket.status === 'claimed' || ticket.status === 'in_progress'
                     ? "bg-primary text-on-primary shadow-2xl" 
-                    : "bg-surface-container-high opacity-50"
+                    : "bg-surface-container-high"
                 )}>
-                  {!ticket.assigned_volunteer_handle ? (
+                  {ticket.status === 'pending' || ticket.status === 'requested' ? (
                     <>
-                      <Clock size={64} className="mb-6 animate-pulse opacity-40" />
-                      <h3 className="font-headline font-bold text-xl mb-2">Waiting for Volunteer</h3>
-                      <p className="text-sm opacity-70">A certified volunteer will claim your request shortly. Please stay on this page.</p>
+                      <Clock size={64} className="mb-6 animate-pulse opacity-40 text-primary" />
+                      <h3 className="font-headline font-black text-2xl md:text-3xl mb-4">
+                        Your case is still waiting a responding Volunteer
+                      </h3>
+                      <p className="text-sm font-medium opacity-70 max-w-sm">
+                        A certified student volunteer will claim your request shortly. Please keep this Case ID safe.
+                      </p>
                     </>
-                  ) : (
+                  ) : (ticket.status === 'claimed' || ticket.status === 'in_progress') ? (
                     <>
-                      <MessageCircle size={64} className="mb-6" />
-                      <h3 className="font-headline font-bold text-2xl mb-2">Volunteer Connected!</h3>
-                      <p className="text-sm opacity-90 mb-8">You can now reach out to your assigned volunteer via their secure handle:</p>
-                      <div className="bg-white/20 backdrop-blur-md px-8 py-4 rounded-2xl font-black text-xl mb-6 select-all">
+                      <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-6 backdrop-blur-sm">
+                        <MessageCircle size={40} />
+                      </div>
+                      <h3 className="font-headline font-black text-2xl md:text-3xl mb-2">Volunteer Connected!</h3>
+                      <p className="text-sm font-bold opacity-90 mb-8">
+                        {volunteerName || "A volunteer"} has claimed your case. Reach out via their secure handle:
+                      </p>
+                      <div className="bg-white/20 backdrop-blur-md px-8 py-4 rounded-2xl font-black text-2xl mb-6 select-all border border-white/30 shadow-lg">
                         {ticket.assigned_volunteer_handle}
                       </div>
                       <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">This handle is private and only visible to you.</p>
+                    </>
+                  ) : ticket.status === 'resolved' ? (
+                    <>
+                      <CheckCircle size={64} className="mb-6 text-success" />
+                      <h3 className="font-headline font-black text-2xl mb-2">Case Resolved</h3>
+                      <p className="text-sm opacity-70">Your volunteer has marked this case as resolved. Thank you for using Kaagapay.</p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={64} className="mb-6 opacity-40" />
+                      <h3 className="font-headline font-bold text-xl mb-2">Case Status: {ticket.status.replace('_', ' ')}</h3>
+                      <p className="text-sm opacity-70">Please contact the OASH office if you have any questions.</p>
                     </>
                   )}
                 </div>

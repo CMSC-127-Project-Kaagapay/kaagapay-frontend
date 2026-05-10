@@ -52,9 +52,13 @@ export default function VolunteerDashboard() {
 
         // Initial fetch
         const requested = await getRequestedIncidents(token);
-        setRequestedTickets(requested);
+        setRequestedTickets([...requested].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ));
         const pending = await getPendingIncidents(token);
-        setPendingTickets(pending);
+        setPendingTickets([...pending].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ));
         setLoading(false);
 
         // Start Subscription with a unique name to avoid dev collisions
@@ -88,8 +92,12 @@ export default function VolunteerDashboard() {
                 setTimeout(() => setNotification(null), 60000);
               }
               // Always refresh
-              getRequestedIncidents(token).then(setRequestedTickets);
-              getPendingIncidents(token).then(setPendingTickets);
+              getRequestedIncidents(token).then(data => 
+                setRequestedTickets([...data].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+              );
+              getPendingIncidents(token).then(data => 
+                setPendingTickets([...data].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
+              );
             }
           })
           .subscribe((status: string) => {
@@ -139,9 +147,13 @@ export default function VolunteerDashboard() {
       setIsModalOpen(false);
       // Refresh tickets
       const requested = await getRequestedIncidents(token);
-      setRequestedTickets(requested);
+      setRequestedTickets([...requested].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      ));
       const pending = await getPendingIncidents(token);
-      setPendingTickets(pending);
+      setPendingTickets([...pending].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      ));
 
       alert(`Case ${selectedTicket.public_case_id} successfully claimed!`);
     } catch (error) {
