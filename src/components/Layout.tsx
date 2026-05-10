@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Phone, UserCircle, Menu, X, LogOut } from 'lucide-react';
+import { Phone, UserCircle, Menu, X, LogOut, Mail, Globe } from 'lucide-react';
 import { cn } from "@/src/lib/utils";
 import logo from "../assets/pk_logo.png";
 import { supabase } from "../lib/supabase";
@@ -109,13 +109,21 @@ export function Footer() {
         </div>
         <div className="space-y-4">
           <h4 className="font-bold text-primary uppercase tracking-widest text-xs">Contact</h4>
-          <ul className="space-y-2 text-sm font-medium">
-            <li className="flex items-center gap-2"><Phone size={14} className="text-primary" /> Crisis Hotline: (082) 293-0000</li>
+          <ul className="space-y-2 text-sm font-medium flex flex-col gap-1">
+            <li className="flex items-center gap-2"><Phone size={14} className="text-primary shrink-0" /> Crisis Hotline: (082) 293-0000</li>
+            <li className="flex items-center gap-2">
+              <Mail size={14} className="text-primary shrink-0" /> 
+              <a href="mailto:proj.kaagapay@gmail.com" className="hover:underline break-all">proj.kaagapay@gmail.com</a>
+            </li>
+            <li className="flex items-center gap-2">
+              <Globe size={14} className="text-primary shrink-0" /> 
+              <a href="https://facebook.com/proj.kaagapay" target="_blank" rel="noopener noreferrer" className="hover:underline break-all">facebook.com/proj.kaagapay</a>
+            </li>
           </ul>
         </div>
       </div>
       <div className="mt-16 pt-8 border-t border-outline-variant/10 text-center text-xs text-on-surface-variant/60">
-        <p>© 2024 UP Mindanao Project Kaagapay. All rights reserved.</p>
+        <p>© 2025 UP Mindanao Project Kaagapay. All rights reserved.</p>
       </div>
     </footer>
   );
