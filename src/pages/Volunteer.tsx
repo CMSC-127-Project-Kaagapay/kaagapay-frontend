@@ -1,71 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Shield, ArrowRight, Handshake, Users, Award, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { Shield, ArrowRight, Users, Award, AlertTriangle } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
-import { supabase } from '@/src/lib/supabase';
-
-interface VolunteerRecord {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  public_alias: string;
-  external_handle: string;
-  status: string;
-  incentive_points: number;
-  office_id: string | null;
-  profile_image_key: string | null;
-}
-
-/** Resolves a Supabase Storage object key to its public URL. */
-function getProfileImageUrl(key: string | null): string {
-  if (!key || !supabase) {
-    return `https://img.icons8.com/?size=100&id=NPW07SMh7Aco&format=png&color=000000`;
-  }
-  const { data } = supabase.storage
-    .from('avatars')
-    .getPublicUrl(key);
-  return data.publicUrl;
-}
+import { getAllVolunteers, VolunteerPublicRecord } from '@/src/lib/api';
 
 export default function Volunteer() {
-  const [volunteers, setVolunteers] = useState<VolunteerRecord[]>([]);
+  const [volunteers, setVolunteers] = useState<VolunteerPublicRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchVolunteers() {
-      if (!supabase) {
-        setError('Supabase client is not configured. Check your environment variables.');
-        setLoading(false);
-        return;
-      }
-
       try {
-        // DEBUG: Fetch ALL volunteers without status filter to diagnose the issue
-        const { data, error: fetchError } = await supabase
-          .from('volunteers')
-          .select('*')
-          .order('first_name', { ascending: true });
-
-        console.log('[DEBUG] Supabase response:', { data, fetchError });
-        console.log('[DEBUG] Volunteer count:', data?.length);
-        if (data?.length) {
-          console.log('[DEBUG] First volunteer:', data[0]);
-          console.log('[DEBUG] Status values:', data.map((v: any) => v.status));
-          console.log('[DEBUG] Column names:', Object.keys(data[0]));
-        }
-
-        if (fetchError) {
-          console.error('Error fetching volunteers:', fetchError);
-          setError(fetchError.message);
-        } else {
-          setVolunteers(data || []);
-        }
-      } catch (err) {
+        const data = await getAllVolunteers();
+        setVolunteers(data || []);
+      } catch (err: any) {
         console.error('Unexpected error fetching volunteers:', err);
-        setError('An unexpected error occurred while loading volunteers.');
+        setError(err.message || 'An unexpected error occurred while loading volunteers.');
       } finally {
         setLoading(false);
       }
@@ -235,7 +187,7 @@ export default function Volunteer() {
             volunteers.map((v) => {
               const fullName = `${v.first_name} ${v.last_name}`;
               const displayName = v.public_alias || fullName;
-              const avatarSrc = getProfileImageUrl(v.profile_image_key);
+              const avatarSrc = v.profile_image_url || `https://img.icons8.com/?size=100&id=NPW07SMh7Aco&format=png&color=000000`;
 
               return (
                 <motion.div
