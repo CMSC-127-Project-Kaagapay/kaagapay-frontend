@@ -1,5 +1,4 @@
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Shield,
@@ -18,20 +17,14 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
-import { submitReport, ReportForm } from "@/src/lib/api";
-import { supabase } from "@/src/lib/supabase";
-
-const initialForm: ReportForm = {
-  demographic: "",
-  involved_party: "",
-  locality: "",
-  routing_type: "random",
-  selected_volunteer_id: null,
-};
+import { getVolunteers, createIncidentReport, VolunteerResponseDto } from "@/src/lib/api";
 
 export default function Report() {
-  const [form, setForm] = useState<ReportForm>(initialForm);
+  const navigate = useNavigate();
+  const [volunteers, setVolunteers] = useState<VolunteerResponseDto[]>([]);
+  const [loadingVolunteers, setLoadingVolunteers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [caseResult, setCaseResult] = useState<{
@@ -40,97 +33,26 @@ export default function Report() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  interface VolunteerPublicRecord {
-    id: string;
-    first_name: string;
-    last_name: string;
-    status: string;
-    profile_image_key: string | null;
-  }
-
-  function getProfileImageUrl(key: string | null): string {
-    if (!key || !supabase) {
-      return `https://img.icons8.com/?size=100&id=NPW07SMh7Aco&format=png&color=000000`;
-    }
-    const { data } = supabase.storage.from("avatars").getPublicUrl(key);
-    return data.publicUrl;
-  }
-
-  const [volunteers, setVolunteers] = useState<VolunteerPublicRecord[]>([]);
-  const [volunteersLoading, setVolunteersLoading] = useState(true);
-  const [volunteersError, setVolunteersError] = useState<string | null>(null);
-  const [showAllVolunteers, setShowAllVolunteers] = useState(false);
-  const [selectedVolunteerId, setSelectedVolunteerId] = useState<
-    string | null | undefined
-  >(undefined);
-  // undefined = nothing picked yet, null = "any available", string = specific volunteer id
+  // Form State
+  const [incidentType, setIncidentType] = useState("");
+  const [locality, setLocality] = useState("");
+  const [involvedParty, setInvolvedParty] = useState("");
+  const [routingType, setRoutingType] = useState<'specific' | 'random'>('random');
+  const [selectedVolunteerId, setSelectedVolunteerId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     async function fetchVolunteers() {
-      if (!supabase) {
-        setVolunteersError("Supabase client is not configured.");
-        setVolunteersLoading(false);
-        return;
-      }
       try {
-        const { data, error: fetchError } = await supabase
-          .from("volunteers")
-          .select("id, first_name, last_name, status, profile_image_key")
-          .eq("status", "active")
-          .order("first_name", { ascending: true });
-
-        if (fetchError) throw new Error(fetchError.message);
-        setVolunteers(data || []);
-      } catch (err: any) {
-        setVolunteersError(err.message);
+        const data = await getVolunteers();
+        setVolunteers(data);
+      } catch (error) {
+        console.error("Error fetching volunteers:", error);
       } finally {
-        setVolunteersLoading(false);
+        setLoadingVolunteers(false);
       }
     }
     fetchVolunteers();
   }, []);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!form.demographic || !form.involved_party || !form.locality) {
-      setError("Please fill in all fields before submitting.");
-      return;
-    }
-
-    if (selectedVolunteerId === undefined) {
-      setError(
-        "Please select a volunteer accompaniment option before submitting.",
-      );
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const result = await submitReport({
-        ...form,
-        routing_type: selectedVolunteerId === null ? "random" : "specific",
-        selected_volunteer_id: selectedVolunteerId ?? null,
-      });
-      setCaseResult({
-        public_case_id: result.public_case_id,
-        status: result.status,
-      });
-      setForm(initialForm);
-      setSelectedVolunteerId(undefined);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   function handleCopy() {
     if (!caseResult) return;
@@ -141,7 +63,45 @@ export default function Report() {
 
   function handleCloseModal() {
     setCaseResult(null);
+    if (caseResult) {
+      navigate(`/track?token=${caseResult.public_case_id}`);
+    }
   }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!incidentType || !locality || !involvedParty) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (routingType === 'specific' && !selectedVolunteerId) {
+      setError("Please select a volunteer or choose 'Any Available'.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      const response = await createIncidentReport({
+        demographic: incidentType,
+        locality: locality,
+        involved_party: involvedParty,
+        routing_type: routingType,
+        selected_volunteer_id: selectedVolunteerId,
+      });
+
+      setCaseResult({
+        public_case_id: response.public_case_id,
+        status: response.status,
+      });
+    } catch (error: any) {
+      console.error("Error submitting report:", error);
+      setError(error.message || "Failed to submit report. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto">
@@ -161,7 +121,6 @@ export default function Report() {
               transition={{ type: "spring", stiffness: 200, damping: 20 }}
               className="bg-surface-container-lowest rounded-3xl p-10 max-w-md w-full editorial-shadow relative"
             >
-              {/* Close */}
               <button
                 onClick={handleCloseModal}
                 className="absolute top-5 right-5 p-2 rounded-xl hover:bg-surface-container-low transition-colors text-on-surface-variant"
@@ -169,7 +128,6 @@ export default function Report() {
                 <X size={18} />
               </button>
 
-              {/* Icon */}
               <div className="flex flex-col items-center text-center gap-6">
                 <motion.div
                   initial={{ scale: 0 }}
@@ -195,7 +153,6 @@ export default function Report() {
                   </p>
                 </div>
 
-                {/* Case ID */}
                 <div className="w-full bg-surface-container-low rounded-2xl p-5 flex flex-col gap-3">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
                     Your Case ID
@@ -218,7 +175,6 @@ export default function Report() {
                   </div>
                 </div>
 
-                {/* Status Badge */}
                 <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold uppercase tracking-widest">
                   <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
                   Status: {caseResult.status.replace("_", " ")}
@@ -237,7 +193,6 @@ export default function Report() {
       </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        {/* Header Section */}
         <div className="lg:col-span-12 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -257,7 +212,6 @@ export default function Report() {
           </p>
         </div>
 
-        {/* Main Form Section */}
         <div className="lg:col-span-7 space-y-8">
           <section className="bg-surface-container-lowest rounded-3xl p-8 editorial-shadow border border-outline-variant/10">
             <h2 className="text-2xl font-bold font-headline mb-8 text-on-surface flex items-center gap-3">
@@ -266,6 +220,43 @@ export default function Report() {
             </h2>
 
             <form className="space-y-8" onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                  Nature of Incident *
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    "Harassment",
+                    "Discrimination",
+                    "Stalking",
+                    "Physical Harm",
+                    "Other",
+                  ].map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setIncidentType(type)}
+                      className={cn(
+                        "px-4 py-3 rounded-xl border transition-all text-left flex items-center justify-between group",
+                        incidentType === type
+                          ? "bg-primary text-on-primary border-primary shadow-lg"
+                          : "border-outline-variant/30 bg-surface text-sm font-semibold hover:bg-secondary-container hover:text-on-secondary-container"
+                      )}
+                    >
+                      {type}
+                      {incidentType === type ? (
+                        <CheckCircle size={14} />
+                      ) : (
+                        <ArrowRight
+                          size={14}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
@@ -275,11 +266,11 @@ export default function Report() {
                   {error}
                 </motion.div>
               )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Demographic */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                    Demographic
+                    Involved Parties *
                   </label>
                   <div className="relative">
                     <Users
@@ -287,58 +278,19 @@ export default function Report() {
                       size={18}
                     />
                     <input
-                      name="demographic"
-                      value={form.demographic}
-                      onChange={handleChange}
                       className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
-                      placeholder="e.g. Youth, Adult, Senior"
+                      placeholder="e.g. Student, Staff, Unknown"
                       type="text"
+                      value={involvedParty}
+                      onChange={(e) => setInvolvedParty(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
 
-                {/* Involved Party */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                    Involved Party
-                  </label>
-                  <div className="relative">
-                    <UserCircle
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
-                      size={18}
-                    />
-                    <input
-                      name="involved_party"
-                      value={form.involved_party}
-                      onChange={handleChange}
-                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
-                      placeholder="e.g. Student, Faculty, Staff"
-                      type="text"
-                    />
-                  </div>
-                </div>
-
-                {/* Date & Time */}
-                {/* <div className="space-y-2">
-                  <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                    Date & Time
-                  </label>
-                  <div className="relative">
-                    <Calendar
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
-                      size={18}
-                    />
-                    <input
-                      className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium"
-                      type="datetime-local"
-                    />
-                  </div>
-                </div> */}
-
-                {/* Locality */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                    Locality
+                    Location / Locality *
                   </label>
                   <div className="relative">
                     <MapPin
@@ -346,27 +298,26 @@ export default function Report() {
                       size={18}
                     />
                     <input
-                      name="locality"
-                      value={form.locality}
-                      onChange={handleChange}
                       className="w-full bg-surface-container-low border-none rounded-xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none"
                       placeholder="e.g. Inside UP Campus, Outside"
                       type="text"
+                      value={locality}
+                      onChange={(e) => setLocality(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
               </div>
 
               <div className="pt-4">
-                <button
+                <button 
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-primary text-on-primary font-headline font-extrabold py-5 rounded-2xl shadow-xl hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full bg-primary text-on-primary font-headline font-extrabold py-5 rounded-2xl shadow-xl hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
-                      <Loader2 size={20} className="animate-spin" />{" "}
-                      Submitting...
+                      <Loader2 size={20} className="animate-spin" /> Submitting...
                     </>
                   ) : (
                     <>
@@ -375,14 +326,12 @@ export default function Report() {
                   )}
                 </button>
                 <p className="text-center text-[10px] text-on-surface-variant mt-6 font-bold uppercase tracking-widest opacity-60">
-                  Submission is timestamped and encrypted using TLS 1.3
-                  standards.
+                  Submission is anonymous by default unless you choose to reveal later.
                 </p>
               </div>
             </form>
           </section>
 
-          {/* Emergency Contact */}
           <div className="bg-surface-container rounded-3xl p-8 editorial-shadow border border-outline-variant/20 relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="text-xl font-black font-headline mb-2 text-on-surface">
@@ -409,13 +358,11 @@ export default function Report() {
           </div>
         </div>
 
-        {/* Side Support Section */}
         <div className="lg:col-span-5 space-y-8">
-          {/* Volunteer Accompaniment */}
           <section
             className={cn(
               "bg-surface-container-lowest rounded-3xl p-8 editorial-shadow border transition-all",
-              error && selectedVolunteerId === undefined
+              error && routingType === 'specific' && !selectedVolunteerId
                 ? "border-error/40"
                 : "border-outline-variant/10",
             )}
@@ -428,21 +375,21 @@ export default function Report() {
               Select a certified student volunteer to accompany you during the
               reporting process, or request any available volunteer.
             </p>
-
-            {/* Required indicator */}
             <p className="text-[10px] font-bold uppercase tracking-widest text-error mb-6">
               * Required — please select an option
             </p>
 
-            {/* "Any Available" quick option */}
-            <button
+            <button 
               type="button"
-              onClick={() => setSelectedVolunteerId(null)}
+              onClick={() => {
+                setRoutingType('random');
+                setSelectedVolunteerId(undefined);
+              }}
               className={cn(
-                "w-full mb-6 flex items-center justify-between gap-4 p-4 rounded-2xl border-2 border-dashed transition-all group",
-                selectedVolunteerId === null
-                  ? "border-secondary bg-secondary-container"
-                  : "border-secondary/30 bg-secondary-container/30 hover:bg-secondary-container hover:border-secondary/60",
+                "w-full mb-6 flex items-center justify-between gap-4 p-4 rounded-2xl border-2 transition-all group",
+                routingType === 'random'
+                  ? "border-secondary bg-secondary-container/20 shadow-md"
+                  : "border-dashed border-secondary/30 bg-secondary-container/10 hover:bg-secondary-container/20"
               )}
             >
               <div className="flex items-center gap-4">
@@ -450,11 +397,11 @@ export default function Report() {
                   <Users size={24} className="text-secondary" />
                 </div>
                 <div className="text-left">
-                  <h4 className="font-bold text-on-surface group-hover:text-secondary transition-colors">
+                  <h4 className="font-bold text-on-surface">
                     Any Available Volunteer
                   </h4>
                   <p className="text-xs text-on-surface-variant font-medium">
-                    We'll match you with the next available volunteer
+                    Fastest response time
                   </p>
                 </div>
               </div>
@@ -462,7 +409,7 @@ export default function Report() {
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">
                   RECOMMENDED
                 </span>
-                {selectedVolunteerId === null && (
+                {routingType === 'random' && (
                   <CheckCircle size={18} className="text-secondary" />
                 )}
               </div>
@@ -476,102 +423,82 @@ export default function Report() {
               <div className="h-px flex-1 bg-outline-variant/30" />
             </div>
 
-            {volunteersLoading ? (
-              <div className="flex items-center justify-center py-8 gap-3">
-                <Loader2 size={20} className="animate-spin text-secondary" />
-                <span className="text-sm text-on-surface-variant font-medium">
-                  Loading volunteers...
-                </span>
-              </div>
-            ) : volunteersError ? (
-              <div className="py-6 text-center">
-                <p className="text-sm text-error font-medium">
-                  {volunteersError}
-                </p>
-              </div>
-            ) : volunteers.length === 0 ? (
-              <div className="py-6 text-center">
-                <p className="text-sm text-on-surface-variant font-medium">
-                  No active volunteers available at this time.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(showAllVolunteers ? volunteers : volunteers.slice(0, 3)).map(
-                  (v) => {
-                    const isAvailable = v.status.toLowerCase() === "active";
-                    const isSelected = selectedVolunteerId === v.id;
-                    const fullName = `${v.first_name} ${v.last_name}`;
-                    return (
-                      <div
-                        key={v.id}
-                        onClick={() =>
-                          isAvailable &&
-                          setSelectedVolunteerId(isSelected ? undefined : v.id)
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {loadingVolunteers ? (
+                <div className="py-8 text-center">
+                  <Loader2 className="animate-spin mx-auto text-secondary" />
+                  <p className="text-xs font-bold uppercase tracking-widest mt-2 opacity-60">Loading Volunteers...</p>
+                </div>
+              ) : volunteers.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm text-on-surface-variant font-medium">
+                    No active volunteers available at this time.
+                  </p>
+                </div>
+              ) : (
+                volunteers.map((v) => {
+                  const isAvailable = v.status.toLowerCase() === "active" || v.status.toLowerCase() === "online";
+                  const isSelected = selectedVolunteerId === v.id;
+                  return (
+                    <div
+                      key={v.id}
+                      onClick={() => {
+                        if (isAvailable) {
+                          setRoutingType('specific');
+                          setSelectedVolunteerId(v.id);
                         }
-                        className={cn(
-                          "flex items-center gap-4 p-4 bg-surface rounded-2xl border transition-all group",
-                          isAvailable
-                            ? "cursor-pointer hover:border-secondary/40 hover:shadow-md"
-                            : "opacity-50 pointer-events-none border-outline-variant/20",
-                          isSelected
-                            ? "border-secondary/60 bg-secondary-container/10"
-                            : "border-outline-variant/20",
+                      }}
+                      className={cn(
+                        "flex items-center gap-4 p-4 bg-surface rounded-2xl border transition-all cursor-pointer group",
+                        !isAvailable && "opacity-50 pointer-events-none grayscale",
+                        isSelected
+                          ? "border-secondary bg-secondary-container/10 shadow-md"
+                          : "border-outline-variant/20 hover:border-secondary/40"
+                      )}
+                    >
+                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-outline-variant/30 shrink-0">
+                        {v.profile_image_url ? (
+                          <img src={v.profile_image_url} alt={v.public_alias} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+                            <Users size={24} />
+                          </div>
                         )}
-                      >
-                        <img
-                          alt={fullName}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-outline-variant/30 shrink-0"
-                          src={getProfileImageUrl(v.profile_image_key)}
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="flex-grow">
-                          <h4 className="font-bold text-on-surface group-hover:text-secondary transition-colors">
-                            {fullName}
-                          </h4>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span
-                            className={cn(
-                              "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                              isAvailable
-                                ? "bg-secondary-container text-on-secondary-container"
-                                : "bg-surface-container text-on-surface-variant",
-                            )}
-                          >
-                            {v.status.toUpperCase()}
-                          </span>
-                          {isSelected && (
-                            <CheckCircle size={16} className="text-secondary" />
-                          )}
-                        </div>
                       </div>
-                    );
-                  },
-                )}
-              </div>
-            )}
-
-            {!volunteersLoading &&
-              !volunteersError &&
-              volunteers.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllVolunteers((prev) => !prev)}
-                  className="w-full mt-6 py-3 text-sm font-bold text-on-surface-variant border border-outline-variant/30 rounded-xl hover:bg-surface-container-low transition-all"
-                >
-                  {showAllVolunteers
-                    ? "Show Less"
-                    : `View All Volunteers (${volunteers.length})`}
-                </button>
+                      <div className="flex-grow">
+                        <h4 className="font-bold text-on-surface group-hover:text-secondary transition-colors">
+                          {v.public_alias || `${v.first_name} ${v.last_name}`}
+                        </h4>
+                        <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">
+                          Certified Volunteer
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                            isAvailable
+                              ? "bg-secondary-container text-on-secondary-container"
+                              : "bg-surface-container text-on-surface-variant",
+                          )}
+                        >
+                          {v.status.toUpperCase()}
+                        </span>
+                        {isSelected && (
+                          <CheckCircle size={16} className="text-secondary" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               )}
+            </div>
 
             <p className="text-center text-[10px] text-on-surface-variant mt-4 font-bold uppercase tracking-widest opacity-60">
               All volunteers are trained and certified by OASH
             </p>
           </section>
 
-          {/* Real-time Feedback */}
           <section className="bg-surface-container border border-outline-variant/40 text-on-surface rounded-3xl p-8 relative overflow-hidden editorial-shadow">
             <div className="absolute top-0 right-0 p-4 opacity-5">
               <Shield size={120} />

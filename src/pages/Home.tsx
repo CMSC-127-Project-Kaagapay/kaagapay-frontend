@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
   Shield,
@@ -15,6 +16,8 @@ import communityPhoto from "../assets/community_support.jpg";
 import heroPhoto from "../assets/hero_bg.png";
 
 export default function Home() {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-24 pb-24">
       {/* Hero Section */}
@@ -43,13 +46,14 @@ export default function Home() {
             </h1>
 
             <p className="text-lg md:text-xl text-white/90 max-w-lg leading-relaxed font-medium">
-              The Office of Anti-Sexual Harassment is committed to a university
-              environment free from all forms of sexual harassment, where your
-              safety and dignity are our highest priority.
+              We are dedicated to fostering a university environment defined by respect and free from sexual harassment. Here, every voice is heard, and every student is protected.
             </p>
 
             <div className="flex flex-wrap gap-4 pt-4">
-              <button className="px-8 py-4 bg-white text-primary font-bold rounded-full shadow-xl hover:bg-surface-container transition-all active:scale-95 flex items-center gap-2 ring-4 ring-white/20">
+              <button
+                onClick={() => navigate("/report")}
+                className="px-8 py-4 bg-white text-primary font-bold rounded-full shadow-xl hover:bg-surface-container transition-all active:scale-95 flex items-center gap-2 ring-4 ring-white/20"
+              >
                 <Shield size={20} />
                 File a Report
               </button>
@@ -130,19 +134,16 @@ export default function Home() {
                 What is Kaagapay?
               </h3>
               <p className="text-on-surface-variant text-xl leading-relaxed max-w-2xl">
-                The Kaagapay Program is OASH's flagship community support
-                initiative. It provides a network of peer responders, faculty
-                mentors, and specialized counselors trained specifically in
-                trauma-informed care.
+                Launched on January 28, 2025 by Gabriela Youth UP Mindanao, Project Kaagapay aims to be a network of young women and young students, to create a peer facilitating and psychosocial support system for victim-survivors of SH/SA in campus.
               </p>
             </div>
             <div className="flex items-center gap-12 mt-12">
               <div className="flex flex-col">
                 <span className="text-4xl font-extrabold text-primary">
-                  50+
+                  Growing
                 </span>
                 <span className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">
-                  Trained Responders
+                  Support Network
                 </span>
               </div>
               <div className="flex flex-col">
@@ -166,11 +167,16 @@ export default function Home() {
                   Direct Assistance
                 </h4>
                 <p className="text-white/80 text-sm mb-4">
-                  Immediate access to OASH officers.
+                  Reach out to us through our official channels.
                 </p>
-                <span className="text-lg font-bold text-white break-all">
-                  proj.kaagapay@gmail.com
-                </span>
+                <div className="space-y-2">
+                  <a href="mailto:proj.kaagapay@gmail.com" className="text-sm font-bold text-white break-all flex items-center gap-2 hover:underline">
+                    Email: proj.kaagapay@gmail.com
+                  </a>
+                  <a href="https://facebook.com/proj.kaagapay" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white break-all flex items-center gap-2 hover:underline">
+                    Facebook: Project Kaagapay
+                  </a>
+                </div>
               </div>
             </div>
             <div className="bg-secondary text-on-primary p-10 rounded-[3rem] flex flex-col justify-between min-h-70 shadow-lg">
@@ -204,13 +210,14 @@ export default function Home() {
                   title: "Join as a Volunteer",
                   desc: "Become a Kaagapay responder and support your peers.",
                   color: "primary",
+                  path: "/volunteer"
                 },
                 {
                   icon: Shield,
                   title: "Report an Incident",
                   desc: "Safe, secure, and confidential reporting channel.",
                   color: "secondary",
-                  highlight: true,
+                  path: "/report"
                 },
                 {
                   icon: BookOpen,
@@ -221,6 +228,7 @@ export default function Home() {
               ].map((item, idx) => (
                 <motion.div
                   key={idx}
+                  onClick={() => item.path && navigate(item.path)}
                   whileHover={{ y: -4 }}
                   className={cn(
                     "group flex items-center p-8 bg-surface-container-lowest rounded-3xl cursor-pointer transition-all editorial-shadow",
@@ -267,11 +275,10 @@ export default function Home() {
             </div>
             <div className="absolute -bottom-10 -left-10 bg-surface-container-lowest p-8 rounded-3xl shadow-2xl border-l-8 border-primary max-w-sm">
               <p className="italic text-secondary text-base font-medium">
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
-                eiusmod tempor incididunt ut labore et dolore magna aliqua."
+                "100% Confidentiality. Your privacy and safety are our utmost priority. We are here to listen and support you."
               </p>
               <p className="mt-4 font-bold text-primary text-xs uppercase tracking-widest">
-                — UPMin Student
+                — Project Kaagapay
               </p>
             </div>
           </div>

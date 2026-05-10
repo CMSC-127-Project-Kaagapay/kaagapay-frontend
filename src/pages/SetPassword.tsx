@@ -50,7 +50,7 @@ export default function SetPassword() {
     } else {
       setSuccess(true);
       setTimeout(() => {
-        navigate('/admin');
+        navigate('/volunteer/dashboard');
       }, 2000);
     }
   };
