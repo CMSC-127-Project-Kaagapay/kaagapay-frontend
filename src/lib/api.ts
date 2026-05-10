@@ -64,7 +64,12 @@ export interface VolunteerPublicRecord {
   id: string;
   first_name: string;
   last_name: string;
+  email: string;
+  public_alias: string;
+  external_handle: string;
   status: string;
+  incentive_points: number;
+  office_id: string | null;
   profile_image_url: string | null;
 }
 
@@ -176,10 +181,10 @@ export async function submitReport(
 }
 
 /**
- * Fetches all active volunteers for public display.
- * @returns A promise that resolves with an array of active volunteer records.
+ * Fetches all volunteers.
+ * @returns A promise that resolves with an array of volunteer records.
  */
-export async function getActiveVolunteers(): Promise<VolunteerPublicRecord[]> {
+export async function getAllVolunteers(): Promise<VolunteerPublicRecord[]> {
   const response = await fetch(`${API_BASE_URL}/volunteers`, {
     headers: {
       "Content-Type": "application/json",
@@ -188,6 +193,7 @@ export async function getActiveVolunteers(): Promise<VolunteerPublicRecord[]> {
   return handleApiResponse(response);
 }
 
+<<<<<<< Updated upstream
 export interface IncidentTicketResponseDto {
   id: string;
   public_case_id: string;
@@ -248,12 +254,26 @@ export async function getRequestedIncidents(token: string): Promise<IncidentTick
   const response = await fetch(`${API_BASE_URL}/incidents/requested`, {
     headers: {
       'Authorization': `Bearer ${token}`,
+=======
+/**
+ * Fetches a volunteer by ID.
+ * @param id The ID of the volunteer.
+ * @returns A promise that resolves with the volunteer record.
+ */
+export async function getVolunteerById(
+  id: string,
+): Promise<VolunteerPublicRecord> {
+  const response = await fetch(`${API_BASE_URL}/volunteers/${id}`, {
+    headers: {
+      "Content-Type": "application/json",
+>>>>>>> Stashed changes
     },
   });
   return handleApiResponse(response);
 }
 
 /**
+<<<<<<< Updated upstream
  * Fetches all cases that are in the open cases pool.
  */
 export async function getPendingIncidents(token: string): Promise<IncidentTicketResponseDto[]> {
@@ -261,11 +281,27 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
     headers: {
       'Authorization': `Bearer ${token}`,
     },
+=======
+ * Creates a new volunteer.
+ * @param volunteer The volunteer data to create.
+ * @returns A promise that resolves with the created volunteer record.
+ */
+export async function createVolunteer(
+  volunteer: Partial<VolunteerPublicRecord>,
+): Promise<VolunteerPublicRecord> {
+  const response = await fetch(`${API_BASE_URL}/volunteers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(volunteer),
+>>>>>>> Stashed changes
   });
   return handleApiResponse(response);
 }
 
 /**
+<<<<<<< Updated upstream
  * Fetches a specific incident ticket by its public_case_id.
  */
 export async function getSpecificIncident(publicCaseId: string): Promise<IncidentTicketResponseDto> {
@@ -318,3 +354,23 @@ export async function getProfileImageUploadUrl(): Promise<{ upload_url: string; 
   const response = await fetch(`${API_BASE_URL}/volunteers/profile-image-upload-url`);
   return handleApiResponse(response);
 }
+=======
+ * Updates an existing volunteer.
+ * @param id The ID of the volunteer to update.
+ * @param volunteer The volunteer data to update.
+ * @returns A promise that resolves with the updated volunteer record.
+ */
+export async function updateVolunteer(
+  id: string,
+  volunteer: Partial<VolunteerPublicRecord>,
+): Promise<VolunteerPublicRecord> {
+  const response = await fetch(`${API_BASE_URL}/volunteers/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(volunteer),
+  });
+  return handleApiResponse(response);
+}
+>>>>>>> Stashed changes
