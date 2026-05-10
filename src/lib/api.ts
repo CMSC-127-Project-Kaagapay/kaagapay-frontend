@@ -193,7 +193,6 @@ export async function getAllVolunteers(): Promise<VolunteerPublicRecord[]> {
   return handleApiResponse(response);
 }
 
-<<<<<<< Updated upstream
 export interface IncidentTicketResponseDto {
   id: string;
   public_case_id: string;
@@ -254,7 +253,11 @@ export async function getRequestedIncidents(token: string): Promise<IncidentTick
   const response = await fetch(`${API_BASE_URL}/incidents/requested`, {
     headers: {
       'Authorization': `Bearer ${token}`,
-=======
+    },
+  });
+  return handleApiResponse(response);
+}
+
 /**
  * Fetches a volunteer by ID.
  * @param id The ID of the volunteer.
@@ -266,14 +269,12 @@ export async function getVolunteerById(
   const response = await fetch(`${API_BASE_URL}/volunteers/${id}`, {
     headers: {
       "Content-Type": "application/json",
->>>>>>> Stashed changes
     },
   });
   return handleApiResponse(response);
 }
 
 /**
-<<<<<<< Updated upstream
  * Fetches all cases that are in the open cases pool.
  */
 export async function getPendingIncidents(token: string): Promise<IncidentTicketResponseDto[]> {
@@ -281,7 +282,11 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
     headers: {
       'Authorization': `Bearer ${token}`,
     },
-=======
+  });
+  return handleApiResponse(response);
+}
+
+/**
  * Creates a new volunteer.
  * @param volunteer The volunteer data to create.
  * @returns A promise that resolves with the created volunteer record.
@@ -295,13 +300,11 @@ export async function createVolunteer(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(volunteer),
->>>>>>> Stashed changes
   });
   return handleApiResponse(response);
 }
 
 /**
-<<<<<<< Updated upstream
  * Fetches a specific incident ticket by its public_case_id.
  */
 export async function getSpecificIncident(publicCaseId: string): Promise<IncidentTicketResponseDto> {
@@ -333,7 +336,7 @@ export interface VolunteerUpdateDto {
 }
 
 /**
- * Updates a volunteer's information.
+ * Updates a volunteer's information (PATCH).
  */
 export async function updateVolunteer(volunteerId: string, data: VolunteerUpdateDto, token: string): Promise<VolunteerResponseDto> {
   const response = await fetch(`${API_BASE_URL}/volunteers/${volunteerId}`, {
@@ -348,19 +351,12 @@ export async function updateVolunteer(volunteerId: string, data: VolunteerUpdate
 }
 
 /**
- * Provides a PUT presigned URL for S3 image upload.
- */
-export async function getProfileImageUploadUrl(): Promise<{ upload_url: string; key: string }> {
-  const response = await fetch(`${API_BASE_URL}/volunteers/profile-image-upload-url`);
-  return handleApiResponse(response);
-}
-=======
- * Updates an existing volunteer.
+ * Updates an existing volunteer (PUT).
  * @param id The ID of the volunteer to update.
  * @param volunteer The volunteer data to update.
  * @returns A promise that resolves with the updated volunteer record.
  */
-export async function updateVolunteer(
+export async function updateVolunteerById(
   id: string,
   volunteer: Partial<VolunteerPublicRecord>,
 ): Promise<VolunteerPublicRecord> {
@@ -373,4 +369,11 @@ export async function updateVolunteer(
   });
   return handleApiResponse(response);
 }
->>>>>>> Stashed changes
+
+/**
+ * Provides a PUT presigned URL for S3 image upload.
+ */
+export async function getProfileImageUploadUrl(): Promise<{ upload_url: string; key: string }> {
+  const response = await fetch(`${API_BASE_URL}/volunteers/profile-image-upload-url`);
+  return handleApiResponse(response);
+}
