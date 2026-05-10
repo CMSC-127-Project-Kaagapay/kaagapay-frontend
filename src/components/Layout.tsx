@@ -34,7 +34,7 @@ export function Navbar() {
     { name: "Volunteer", path: "/volunteer" },
     { name: "Report", path: "/report" },
     { name: "Track", path: "/track" },
-    { name: "Dashboard", path: "/volunteer/dashboard" },
+    ...(user ? [{ name: "Dashboard", path: "/volunteer/dashboard" }] : []),
   ];
 
   return (
