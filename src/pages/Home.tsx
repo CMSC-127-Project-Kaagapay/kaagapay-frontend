@@ -13,7 +13,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
 import communityPhoto from "../assets/community_support.jpg";
-import heroPhoto from "../assets/hero_bg.png";
+import upminBackground from "../assets/UP-Mindanao.png";
+
+interface HelpItem {
+  icon: React.ElementType;
+  title: string;
+  desc: string;
+  color: string;
+  path?: string;
+  highlight?: boolean;
+}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -21,106 +30,83 @@ export default function Home() {
   return (
     <div className="space-y-24 pb-24">
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden pt-20">
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 aura-gradient opacity-90"></div>
+      <section className="relative min-h-[90vh] flex items-center overflow-hidden pt-20 bg-primary">
+        {/* Background Layer */}
+        <div className="absolute inset-0 z-0 bg-primary">
           <img
             alt="UP Mindanao Campus"
-            className="w-full h-full object-cover mix-blend-overlay"
-            src={heroPhoto}
+            className="w-full h-full object-cover opacity-90"
+            src={upminBackground}
             referrerPolicy="no-referrer"
           />
+          {/* Solid primary on the left fading into the image on the right, keeping it vibrant */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-transparent"></div>
+          {/* A subtle secondary color overlay for depth without darkening */}
+          <div className="absolute inset-0 bg-gradient-to-r from-secondary/60 via-secondary/20 to-transparent mix-blend-overlay"></div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-8 grid lg:grid-cols-2 gap-12 items-center w-full">
+        {/* Content Layer (Left-aligned) */}
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-8 flex justify-start">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="space-y-8"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: { staggerChildren: 0.2 },
+              },
+            }}
+            className="w-full lg:w-[60%] flex flex-col items-start text-left space-y-6"
           >
-            <h1 className="text-5xl md:text-7xl font-extrabold font-headline text-white leading-[1.1] tracking-tight">
+            <motion.h1 
+              variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="text-5xl md:text-7xl font-extrabold font-headline text-white leading-[1.1] tracking-tight drop-shadow-2xl"
+            >
               Safe Spaces, <br />
-              <span className="text-surface-container">Solidarity,</span> &
-              Support.
-            </h1>
-
-            <p className="text-lg md:text-xl text-white/90 max-w-lg leading-relaxed font-medium">
+              <span className="text-[#f9d8ff]">Solidarity,</span> & Support.
+            </motion.h1>
+            
+            <motion.p 
+              variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="text-lg md:text-2xl text-white max-w-lg leading-relaxed font-bold mt-4 drop-shadow-lg"
+            >
               We are dedicated to fostering a university environment defined by respect and free from sexual harassment. Here, every voice is heard, and every student is protected.
-            </p>
+            </motion.p>
 
-            <div className="flex flex-wrap gap-4 pt-4">
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="flex flex-wrap justify-start gap-4 pt-6"
+            >
               <button
                 onClick={() => navigate("/report")}
-                className="px-8 py-4 bg-white text-primary font-bold rounded-full shadow-xl hover:bg-surface-container transition-all active:scale-95 flex items-center gap-2 ring-4 ring-white/20"
+                className="px-8 py-4 bg-white text-primary font-bold rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:bg-surface-container transition-all active:scale-95 flex items-center gap-2"
               >
                 <Shield size={20} />
                 File a Report
               </button>
-              <button className="px-8 py-4 bg-transparent border-2 border-white/40 text-white font-bold rounded-full hover:bg-white/10 transition-all backdrop-blur-sm">
+              <button
+                onClick={() => document.getElementById('commitment')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-transparent border-2 border-white/60 text-white font-bold rounded-full hover:bg-white/20 transition-all backdrop-blur-sm"
+              >
                 Learn About Kaagapay
               </button>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="hidden lg:block"
-          >
-            <div className="relative bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-[3rem] shadow-2xl">
-              <img
-                alt="Safe Counseling Space"
-                className="rounded-3xl w-full aspect-video object-cover mb-6 border border-white/20"
-                src="https://picsum.photos/seed/counseling/800/450"
-                referrerPolicy="no-referrer"
-              />
-              <div className="space-y-4">
-                <h3 className="text-white text-2xl font-bold font-headline">
-                  Response Team
-                </h3>
-                <p className="text-white/80 text-sm">
-                  Our trained responders provide 24/7 empathetic support and
-                  immediate intervention for our community.
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="flex -space-x-3">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="w-10 h-10 rounded-full border-2 border-primary bg-zinc-200 overflow-hidden"
-                      >
-                        <img
-                          src={`https://i.pravatar.cc/100?u=${i}`}
-                          alt="Avatar"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    ))}
-                    <div className="w-10 h-10 rounded-full border-2 border-primary bg-secondary flex items-center justify-center text-[10px] text-white font-bold">
-                      +12
-                    </div>
-                  </div>
-                  <span className="text-white/60 text-xs font-bold uppercase tracking-widest">
-                    Active Now
-                  </span>
-                </div>
-              </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
 
       {/* Commitment Section */}
-      <section className="max-w-7xl mx-auto px-8">
+      <section id="commitment" className="max-w-7xl mx-auto px-8">
         <div className="mb-16">
           <h2 className="text-4xl font-extrabold font-headline text-secondary mb-4">
-            Our Institutional Commitment
+            Driving Cultural Shift
           </h2>
           <p className="text-on-surface-variant max-w-2xl text-lg">
-            Beyond policy, we build a culture of consent and respect through
-            active programs.
+            We don't just enforce rules—we actively reshape the campus narrative by cultivating empathy, awareness, and accountability.
           </p>
         </div>
 
@@ -210,25 +196,35 @@ export default function Home() {
                   title: "Join as a Volunteer",
                   desc: "Become a Kaagapay responder and support your peers.",
                   color: "primary",
-                  path: "/volunteer"
+                  path: "/volunteer",
+                  highlight: false
                 },
                 {
                   icon: Shield,
                   title: "Report an Incident",
                   desc: "Safe, secure, and confidential reporting channel.",
                   color: "secondary",
-                  path: "/report"
+                  path: "/report",
                 },
                 {
                   icon: BookOpen,
                   title: "Policy Handbook",
                   desc: "Read the full University Code of Conduct.",
                   color: "tertiary",
+                  path: "https://upmin.edu.ph/students/student-handbook/",
+                  highlight: false
                 },
-              ].map((item, idx) => (
+              ].map((item: HelpItem, idx) => (
                 <motion.div
                   key={idx}
-                  onClick={() => item.path && navigate(item.path)}
+                  onClick={() => {
+                    if (!item.path) return;
+                    if (item.path.startsWith('http')) {
+                      window.open(item.path, '_blank', 'noopener,noreferrer');
+                    } else {
+                      navigate(item.path);
+                    }
+                  }}
                   whileHover={{ y: -4 }}
                   className={cn(
                     "group flex items-center p-8 bg-surface-container-lowest rounded-3xl cursor-pointer transition-all editorial-shadow",
@@ -275,10 +271,10 @@ export default function Home() {
             </div>
             <div className="absolute -bottom-10 -left-10 bg-surface-container-lowest p-8 rounded-3xl shadow-2xl border-l-8 border-primary max-w-sm">
               <p className="italic text-secondary text-base font-medium">
-                "100% Confidentiality. Your privacy and safety are our utmost priority. We are here to listen and support you."
+                "Our vision is a university where boundaries are sacred and solidarity is the norm."
               </p>
               <p className="mt-4 font-bold text-primary text-xs uppercase tracking-widest">
-                — Project Kaagapay
+                — Gabriela Youth UPMin
               </p>
             </div>
           </div>

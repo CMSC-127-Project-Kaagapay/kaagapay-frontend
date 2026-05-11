@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { Shield, ArrowRight, Users, Award, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Shield, ArrowRight, Users, Award, AlertTriangle, Heart, CheckCircle, Scale, X } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { getAllVolunteers, VolunteerPublicRecord } from '@/src/lib/api';
 
@@ -9,6 +9,7 @@ export default function Volunteer() {
   const [volunteers, setVolunteers] = useState<VolunteerPublicRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchVolunteers() {
@@ -28,8 +29,9 @@ export default function Volunteer() {
 
   return (
     <div className="space-y-24 pb-24 pt-20">
-      {/* Hero Section */}
-      <section className="relative py-24 overflow-hidden">
+      <div>
+        {/* Hero Section */}
+        <section className="relative pt-24 pb-12 overflow-hidden">
         <div className="absolute inset-0 aura-gradient opacity-5 -z-10"></div>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <motion.div
@@ -50,7 +52,10 @@ export default function Volunteer() {
               <Link to="/volunteer/apply" className="px-10 py-5 bg-primary text-on-primary rounded-2xl font-extrabold text-lg shadow-2xl hover:opacity-90 transition-all active:scale-95 inline-block">
                 Join the Team
               </Link>
-              <button className="px-10 py-5 bg-surface-container-highest text-primary rounded-2xl font-extrabold text-lg hover:bg-surface-container-high transition-all">
+              <button 
+                onClick={() => document.getElementById('why-volunteer')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-10 py-5 bg-surface-container-highest text-primary rounded-2xl font-extrabold text-lg hover:bg-surface-container-high transition-all"
+              >
                 Learn More
               </button>
             </div>
@@ -81,8 +86,36 @@ export default function Volunteer() {
         </div>
       </section>
 
+        {/* Core Principles */}
+        <section className="pb-24 pt-12 relative z-10">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="font-headline text-4xl font-extrabold text-primary mb-4 tracking-tight">Our Core Principles</h2>
+            <p className="text-on-surface-variant max-w-2xl mx-auto text-lg font-medium">The foundation of Project Kaagapay's approach to peer support and trauma-informed care.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-primary">
+              <Heart className="text-primary mb-6" size={40} />
+              <h3 className="font-headline text-2xl font-bold mb-4">VALIDATION</h3>
+              <p className="text-on-surface-variant leading-relaxed font-medium">Institutional responses should affirm the survivor's feelings and account for their trauma.</p>
+            </div>
+            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-secondary">
+              <Scale className="text-secondary mb-6" size={40} />
+              <h3 className="font-headline text-2xl font-bold mb-4">EMPOWERMENT</h3>
+              <p className="text-on-surface-variant leading-relaxed font-medium">Survivors should feel capable of participating in the justice process and making decisions about their lives.</p>
+            </div>
+            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-tertiary">
+              <CheckCircle className="text-tertiary mb-6" size={40} />
+              <h3 className="font-headline text-2xl font-bold mb-4">RECOGNITION</h3>
+              <p className="text-on-surface-variant leading-relaxed font-medium">Validate the survivor's experience and story to foster trust and healing.</p>
+            </div>
+          </div>
+        </div>
+        </section>
+      </div>
+
       {/* Recruitment Bento Grid */}
-      <section className="py-24 bg-surface-container-low">
+      <section id="why-volunteer" className="py-24 bg-surface-container-low">
         <div className="max-w-7xl mx-auto px-6">
           <div className="mb-16">
             <h2 className="font-headline text-4xl font-extrabold text-primary mb-4 tracking-tight">Why Volunteer?</h2>
@@ -109,8 +142,8 @@ export default function Volunteer() {
             <div className="bg-primary text-on-primary rounded-[3rem] p-12 flex flex-col justify-center relative overflow-hidden shadow-xl">
               <div className="relative z-10">
                 <h3 className="font-headline text-2xl font-bold mb-4">The Impact</h3>
-                <div className="text-6xl font-black mb-4 tracking-tighter">150+</div>
-                <p className="text-surface-container font-bold text-lg">Cases supported since 2021</p>
+                <div className="text-5xl font-black mb-4 tracking-tighter">Pioneer</div>
+                <p className="text-surface-container font-bold text-lg">Be part of the founding 2025 cohort of peer responders.</p>
               </div>
               <div className="absolute -top-10 -right-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
             </div>
@@ -135,7 +168,7 @@ export default function Volunteer() {
               <div className="flex-1">
                 <h3 className="font-headline text-3xl font-extrabold mb-4 text-on-surface">How to Join</h3>
                 <p className="text-on-surface-variant text-lg mb-8 font-medium">Open call for applications happens every August. Requirements: Enrollment in UP Mindanao, clean disciplinary record, and a passion for student welfare.</p>
-                <button className="text-primary font-black inline-flex items-center gap-2 hover:gap-4 transition-all text-lg uppercase tracking-widest">
+                <button onClick={() => setIsModalOpen(true)} className="text-primary font-black inline-flex items-center gap-2 hover:gap-4 transition-all text-lg uppercase tracking-widest">
                   View Application Process <ArrowRight size={20} />
                 </button>
               </div>
@@ -231,6 +264,72 @@ export default function Volunteer() {
           <div className="absolute bottom-0 left-0 w-[30rem] h-[30rem] bg-secondary/20 rounded-full -ml-32 -mb-32 blur-[100px]"></div>
         </div>
       </section>
+
+      {/* Application Process Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-surface rounded-[2rem] shadow-2xl overflow-hidden z-10 border border-outline-variant/20"
+            >
+              <div className="p-8 sm:p-10">
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <h3 className="font-headline text-3xl font-extrabold text-primary mb-2">Application Process</h3>
+                    <p className="text-on-surface-variant font-medium text-lg">Your journey to becoming a Kaagapay Responder.</p>
+                  </div>
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="flex gap-6">
+                    <div className="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">1</div>
+                    <div>
+                      <h4 className="font-bold text-xl text-on-surface mb-2">Submit Application Form</h4>
+                      <p className="text-on-surface-variant">Fill out the basic information, college details, and a short essay on why you want to join the Kaagapay network.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-6">
+                    <div className="w-12 h-12 bg-secondary text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">2</div>
+                    <div>
+                      <h4 className="font-bold text-xl text-on-surface mb-2">Initial Screening & Interview</h4>
+                      <p className="text-on-surface-variant">Selected applicants will be invited for a brief interview with the OASH officers to assess readiness and alignment with our core principles.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-6">
+                    <div className="w-12 h-12 bg-tertiary text-white rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">3</div>
+                    <div>
+                      <h4 className="font-bold text-xl text-on-surface mb-2">Psychosocial & Protocol Training</h4>
+                      <p className="text-on-surface-variant">A mandatory 2-day workshop covering trauma-informed care, active listening, and UP Mindanao's official reporting protocols.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-10 pt-8 border-t border-outline-variant/20 flex flex-col sm:flex-row gap-4 justify-end">
+                  <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 font-bold text-on-surface-variant hover:text-primary transition-colors">
+                    Close
+                  </button>
+                  <Link to="/volunteer/apply" className="px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all text-center">
+                    Start Application Now
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
