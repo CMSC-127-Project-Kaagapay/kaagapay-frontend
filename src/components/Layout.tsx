@@ -4,24 +4,84 @@ import { Phone, UserCircle, Menu, X, LogOut, Mail, Globe } from 'lucide-react';
 import { cn } from "@/src/lib/utils";
 import logo from "../assets/pk_logo.png";
 import { supabase } from "../lib/supabase";
+import { getVolunteerProfile } from "../lib/api";
+
+type UserRole = 'admin' | 'volunteer' | null;
+
+async function resolveUserRole(user: any): Promise<UserRole> {
+  if (!user) return null;
+
+  const appMetadata = user?.app_metadata ?? {};
+  const userMetadata = user?.user_metadata ?? {};
+  const role = String(
+    appMetadata.role ??
+    userMetadata.role ??
+    appMetadata.user_role ??
+    userMetadata.user_role ??
+    appMetadata.account_type ??
+    userMetadata.account_type ??
+    ''
+  ).toLowerCase();
+  const roles = [
+    ...(Array.isArray(appMetadata.roles) ? appMetadata.roles : []),
+    ...(Array.isArray(userMetadata.roles) ? userMetadata.roles : []),
+  ].map((item) => String(item).toLowerCase());
+
+  if (role === 'volunteer' || roles.includes('volunteer')) return 'volunteer';
+
+  if (
+    role === 'admin' ||
+    roles.includes('admin') ||
+    appMetadata.is_admin === true ||
+    userMetadata.is_admin === true ||
+    appMetadata.isAdmin === true ||
+    userMetadata.isAdmin === true
+  ) {
+    return 'admin';
+  }
+
+  try {
+    await getVolunteerProfile(user.id);
+    return 'volunteer';
+  } catch {
+    return 'admin';
+  }
+}
 
 // --- Navbar Component ---
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<UserRole>(null);
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function applySessionUser(sessionUser: any) {
+      if (!isMounted) return;
+      setUser(sessionUser ?? null);
+      setUserRole(null);
+
+      if (sessionUser) {
+        const role = await resolveUserRole(sessionUser);
+        if (isMounted) setUserRole(role);
+      }
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -34,7 +94,8 @@ export function Navbar() {
     { name: "Volunteer", path: "/volunteer" },
     { name: "Report", path: "/report" },
     { name: "Track", path: "/track" },
-    ...(user ? [{ name: "Dashboard", path: "/volunteer/dashboard" }] : []),
+    ...(userRole === 'admin' ? [{ name: "Admin Dashboard", path: "/admin" }] : []),
+    ...(userRole === 'volunteer' ? [{ name: "Dashboard", path: "/volunteer/dashboard" }] : []),
   ];
 
   return (
@@ -66,9 +127,11 @@ export function Navbar() {
           </button>
           {user ? (
             <div className="flex items-center gap-2">
-              <Link to="/volunteer/profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
-                <UserCircle size={24} />
-              </Link>
+              {userRole !== 'admin' && (
+                <Link to="/volunteer/profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
+                  <UserCircle size={24} />
+                </Link>
+              )}
               <button onClick={handleLogout} className="hidden md:flex text-error hover:bg-error/10 p-2 rounded-lg transition-all">
                 <LogOut size={24} />
               </button>
