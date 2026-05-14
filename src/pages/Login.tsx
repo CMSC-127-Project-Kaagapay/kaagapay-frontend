@@ -2,6 +2,53 @@ import React, { useState } from 'react';
 import { Shield, Lock, Mail, AlertCircle, Loader2, CheckCircle2, ArrowLeft, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getVolunteerProfile } from '../lib/api';
+
+async function getPostLoginRoute(user: any) {
+  const appMetadata = user?.app_metadata ?? {};
+  const userMetadata = user?.user_metadata ?? {};
+  const role = String(
+    appMetadata.role ??
+    userMetadata.role ??
+    appMetadata.user_role ??
+    userMetadata.user_role ??
+    appMetadata.account_type ??
+    userMetadata.account_type ??
+    ''
+  ).toLowerCase();
+  const roles = [
+    ...(Array.isArray(appMetadata.roles) ? appMetadata.roles : []),
+    ...(Array.isArray(userMetadata.roles) ? userMetadata.roles : []),
+  ].map((item) =>
+    String(item).toLowerCase()
+  );
+
+  if (role === 'volunteer' || roles.includes('volunteer')) {
+    return '/volunteer/dashboard';
+  }
+
+  if (
+    role === 'admin' ||
+    roles.includes('admin') ||
+    appMetadata.is_admin === true ||
+    userMetadata.is_admin === true ||
+    appMetadata.isAdmin === true ||
+    userMetadata.isAdmin === true
+  ) {
+    return '/admin';
+  }
+
+  if (user?.id) {
+    try {
+      await getVolunteerProfile(user.id);
+      return '/volunteer/dashboard';
+    } catch {
+      return '/admin';
+    }
+  }
+
+  return '/volunteer/dashboard';
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,7 +73,8 @@ export default function Login() {
       setError(error.message);
       setLoading(false);
     } else if (data.user) {
-      navigate('/volunteer/dashboard');
+      const route = await getPostLoginRoute(data.user);
+      navigate(route, { replace: true });
     }
   };
 
