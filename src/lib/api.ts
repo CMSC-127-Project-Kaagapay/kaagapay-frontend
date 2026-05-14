@@ -2,7 +2,7 @@
 
 const API_BASE_URL = "http://localhost:8000"; // Define your API base URL here
 
-interface ApplicationForm {
+export interface ApplicationForm {
   first_name: string;
   last_name: string;
   motivation: string;
@@ -24,7 +24,7 @@ export interface VolunteerResponseDto {
   office_id?: string;
 }
 
-interface VolunteerApplicationResponseDto {
+export interface VolunteerApplicationResponseDto {
   application_id: string;
   first_name: string;
   last_name: string;
@@ -51,6 +51,7 @@ export interface ReportResponseDto {
     | "requested"
     | "pending"
     | "claimed"
+    | "in_progress"
     | "under_review"
     | "resolved"
     | "closed";
@@ -207,6 +208,8 @@ export interface IncidentTicketResponseDto {
   expires_at: string;
 }
 
+export type AdminTicketStatus = "pending" | "claimed" | "in_progress" | "resolved" | "closed";
+
 export interface IncidentTicketCreateDto {
   demographic: string;
   locality: string;
@@ -281,6 +284,21 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
   const response = await fetch(`${API_BASE_URL}/incidents/pending`, {
     headers: {
       'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Fetches all incident tickets for admins, filtered by status.
+ */
+export async function getAdminTicketsByStatus(
+  ticketStatus: AdminTicketStatus,
+  token: string,
+): Promise<IncidentTicketResponseDto[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${ticketStatus}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
     },
   });
   return handleApiResponse(response);

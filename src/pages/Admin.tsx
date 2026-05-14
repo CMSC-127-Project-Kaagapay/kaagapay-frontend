@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   TrendingDown, 
@@ -10,7 +11,10 @@ import {
   Users, 
   BarChart3, 
   FileText,
-  Lock
+  Lock,
+  Inbox,
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
@@ -18,13 +22,79 @@ import {
   getVolunteerApplications, 
   approveVolunteerApplication, 
   rejectVolunteerApplication,
+  getAdminTicketsByStatus,
+  AdminTicketStatus,
+  IncidentTicketResponseDto,
   VolunteerApplicationResponseDto // Import DTO from api.ts
 } from '@/src/lib/api'; // Import API functions from api.ts
 
+const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'claimed', 'in_progress', 'resolved', 'closed'];
+
+function isAdminTicketStatus(value: string | undefined): value is AdminTicketStatus {
+  return ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
+}
+
+function formatStatus(status: string) {
+  return status.replace(/_/g, ' ');
+}
+
+function getTicketStatusClasses(status: string) {
+  switch (status) {
+    case 'pending':
+      return {
+        text: 'text-secondary',
+        dot: 'bg-secondary',
+        pill: 'bg-secondary-container text-on-secondary-container',
+      };
+    case 'claimed':
+      return {
+        text: 'text-primary',
+        dot: 'bg-primary',
+        pill: 'bg-primary/10 text-primary',
+      };
+    case 'in_progress':
+      return {
+        text: 'text-[#7C5800]',
+        dot: 'bg-[#F2B705]',
+        pill: 'bg-[#FFF3C4] text-[#7C5800]',
+      };
+    case 'resolved':
+      return {
+        text: 'text-[#007A3D]',
+        dot: 'bg-[#00A856]',
+        pill: 'bg-[#D9FBE8] text-[#007A3D]',
+      };
+    case 'closed':
+      return {
+        text: 'text-on-surface-variant',
+        dot: 'bg-outline',
+        pill: 'bg-surface-container-high text-on-surface-variant',
+      };
+    default:
+      return {
+        text: 'text-on-surface-variant',
+        dot: 'bg-outline',
+        pill: 'bg-surface-container-high text-on-surface-variant',
+      };
+  }
+}
+
 export default function Admin() {
+  const navigate = useNavigate();
+  const { ticketStatus } = useParams<{ ticketStatus?: string }>();
+  const selectedTicketStatus = isAdminTicketStatus(ticketStatus) ? ticketStatus : 'pending';
   const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<IncidentTicketResponseDto[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ticketStatus && !isAdminTicketStatus(ticketStatus)) {
+      navigate('/admin/tickets/pending', { replace: true });
+    }
+  }, [navigate, ticketStatus]);
 
   useEffect(() => {
     async function fetchVolunteerApplications() {
@@ -49,6 +119,32 @@ export default function Admin() {
 
     fetchVolunteerApplications();
   }, []);
+
+  useEffect(() => {
+    async function fetchTickets() {
+      setTicketsLoading(true);
+      setTicketsError(null);
+      try {
+        const token = getAuthToken();
+        if (!token) {
+          setTicketsError("Authentication token not found. Please log in as an administrator.");
+          setTicketsLoading(false);
+          return;
+        }
+
+        const data = await getAdminTicketsByStatus(selectedTicketStatus, token);
+        setTickets([...data].sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ));
+      } catch (err: any) {
+        setTicketsError(err.message);
+      } finally {
+        setTicketsLoading(false);
+      }
+    }
+
+    fetchTickets();
+  }, [selectedTicketStatus]);
 
   const handleAction = async (application_id: string, action: 'approve' | 'reject') => {
     try {
@@ -161,6 +257,113 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+            <div>
+              <h2 className="text-2xl font-bold font-headline text-on-surface">Incident Tickets</h2>
+              <p className="text-on-surface-variant text-sm font-medium mt-1">
+                Viewing {formatStatus(selectedTicketStatus)} reports from the admin ticket queue.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ADMIN_TICKET_STATUSES.map((status) => {
+                const statusClasses = getTicketStatusClasses(status);
+                const isSelected = selectedTicketStatus === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => navigate(`/admin/tickets/${status}`)}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                      isSelected
+                        ? statusClasses.pill
+                        : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
+                    )}
+                  >
+                    <span className={cn("w-2 h-2 rounded-full", statusClasses.dot)} />
+                    {formatStatus(status)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {ticketsLoading && (
+            <div className="py-16 flex items-center justify-center gap-3 text-on-surface-variant font-bold">
+              <Loader2 className="animate-spin text-primary" size={20} />
+              Loading {formatStatus(selectedTicketStatus)} tickets...
+            </div>
+          )}
+
+          {!ticketsLoading && ticketsError && (
+            <p className="py-12 text-error text-center font-medium">{ticketsError}</p>
+          )}
+
+          {!ticketsLoading && !ticketsError && tickets.length === 0 && (
+            <div className="py-16 text-center space-y-4">
+              <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mx-auto opacity-50">
+                <Inbox size={32} />
+              </div>
+              <p className="text-on-surface-variant font-medium">
+                No {formatStatus(selectedTicketStatus)} incident tickets found.
+              </p>
+            </div>
+          )}
+
+          {!ticketsLoading && !ticketsError && tickets.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-separate border-spacing-y-4">
+                <thead>
+                  <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
+                    <th className="px-6 pb-2">Case ID</th>
+                    <th className="px-6 pb-2">Locality</th>
+                    <th className="px-6 pb-2">Demographic</th>
+                    <th className="px-6 pb-2">Routing</th>
+                    <th className="px-6 pb-2">Volunteer</th>
+                    <th className="px-6 pb-2">Status</th>
+                    <th className="px-6 pb-2 text-right">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((ticket) => {
+                    const statusClasses = getTicketStatusClasses(ticket.status);
+                    return (
+                      <tr key={ticket.id} className="bg-surface-container-low transition-all hover:bg-white group">
+                        <td className="px-6 py-6 rounded-l-3xl font-bold text-primary">{ticket.public_case_id}</td>
+                        <td className="px-6 py-6 text-on-surface font-semibold">{ticket.locality}</td>
+                        <td className="px-6 py-6 text-on-surface-variant font-medium">{ticket.demographic}</td>
+                        <td className="px-6 py-6 text-on-surface-variant font-medium capitalize">{formatStatus(ticket.routing_type)}</td>
+                        <td className="px-6 py-6 text-on-surface-variant font-medium max-w-xs truncate">
+                          {ticket.assigned_volunteer_handle || ticket.assigned_volunteer_id || 'Unassigned'}
+                        </td>
+                        <td className="px-6 py-6">
+                          <span className={cn("flex items-center gap-2 font-bold text-sm capitalize", statusClasses.text)}>
+                            <span className={cn("w-2 h-2 rounded-full", statusClasses.dot)}></span>
+                            {formatStatus(ticket.status)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-6 rounded-r-3xl text-right text-on-surface font-semibold whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-2">
+                            <Clock size={14} className="text-outline" />
+                            {new Date(ticket.created_at).toLocaleString([], {
+                              month: 'short',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
 
       {loading && <p className="text-on-surface-variant text-center">Loading volunteer applications...</p>}
       {error && <p className="text-error text-center">{error}</p>}
