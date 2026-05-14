@@ -59,6 +59,7 @@ function AppContent() {
           <Route path="/volunteer/apply" element={<VolunteerApplication />} />
           <Route path="/report" element={<Report />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/tickets/:ticketStatus" element={<Admin />} />
           <Route path="/login" element={<Login />} />
           <Route path="/volunteer/dashboard" element={<VolunteerDashboard />} />
           <Route path="/volunteer/profile" element={<VolunteerProfile />} />
@@ -78,4 +79,3 @@ export default function App() {
     </Router>
   );
 }
-
