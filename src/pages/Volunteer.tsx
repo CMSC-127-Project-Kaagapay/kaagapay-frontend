@@ -32,85 +32,85 @@ export default function Volunteer() {
       <div>
         {/* Hero Section */}
         <section className="relative pt-24 pb-12 overflow-hidden">
-        <div className="absolute inset-0 aura-gradient opacity-5 -z-10"></div>
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-8"
-          >
-            <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase tracking-[0.2em]">
-              The Kaagapay Program
-            </span>
-            <h1 className="font-headline text-5xl lg:text-7xl font-extrabold text-primary leading-tight tracking-tighter">
-              Compassion in <br />Institutional Service.
-            </h1>
-            <p className="text-lg text-on-surface-variant max-w-lg leading-relaxed font-medium">
-              The Kaagapay program is our network of dedicated students and staff trained to provide peer support and advocate for a safe, harassment-free campus environment.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link to="/volunteer/apply" className="px-10 py-5 bg-primary text-on-primary rounded-2xl font-extrabold text-lg shadow-2xl hover:opacity-90 transition-all active:scale-95 inline-block">
-                Join the Team
-              </Link>
-              <button 
-                onClick={() => document.getElementById('why-volunteer')?.scrollIntoView({ behavior: 'smooth' })}
-                className="px-10 py-5 bg-surface-container-highest text-primary rounded-2xl font-extrabold text-lg hover:bg-surface-container-high transition-all"
-              >
-                Learn More
-              </button>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative"
-          >
-            <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl relative ring-8 ring-white/50">
-              <img
-                alt="Collaborative meeting"
-                className="w-full h-full object-cover"
-                src="https://picsum.photos/seed/volunteer-hero/800/1000"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
-            </div>
-            <div className="absolute -bottom-8 -left-8 bg-white p-8 rounded-3xl shadow-2xl max-w-xs hidden md:block border border-outline-variant/10">
-              <div className="flex items-center gap-3 mb-3">
-                <Award className="text-secondary" fill="currentColor" size={24} />
-                <span className="font-headline font-extrabold text-on-surface">Certified Peers</span>
+          <div className="absolute inset-0 aura-gradient opacity-5 -z-10"></div>
+          <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-8"
+            >
+              <span className="inline-block px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-[10px] font-bold uppercase tracking-[0.2em]">
+                The Kaagapay Program
+              </span>
+              <h1 className="font-headline text-5xl lg:text-7xl font-extrabold text-primary leading-tight tracking-tighter">
+                Compassion in <br />Institutional Service.
+              </h1>
+              <p className="text-lg text-on-surface-variant max-w-lg leading-relaxed font-medium">
+                The Kaagapay program is our network of dedicated students and staff trained to provide peer support and advocate for a safe, harassment-free campus environment.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Link to="/volunteer/apply" className="px-10 py-5 bg-primary text-on-primary rounded-2xl font-extrabold text-lg shadow-2xl hover:opacity-90 transition-all active:scale-95 inline-block">
+                  Join the Team
+                </Link>
+                <button
+                  onClick={() => document.getElementById('why-volunteer')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-10 py-5 bg-surface-container-highest text-primary rounded-2xl font-extrabold text-lg hover:bg-surface-container-high transition-all"
+                >
+                  Learn More
+                </button>
               </div>
-              <p className="text-sm text-on-surface-variant font-medium leading-relaxed">Every volunteer undergoes intensive psychosocial training and OASH protocol certification.</p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="relative"
+            >
+              <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl relative ring-8 ring-white/50">
+                <img
+                  alt="Collaborative meeting"
+                  className="w-full h-full object-cover"
+                  src="https://picsum.photos/seed/volunteer-hero/800/1000"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+              </div>
+              <div className="absolute -bottom-8 -left-8 bg-white p-8 rounded-3xl shadow-2xl max-w-xs hidden md:block border border-outline-variant/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <Award className="text-secondary" fill="currentColor" size={24} />
+                  <span className="font-headline font-extrabold text-on-surface">Certified Peers</span>
+                </div>
+                <p className="text-sm text-on-surface-variant font-medium leading-relaxed">Every volunteer undergoes intensive psychosocial training and OASH protocol certification.</p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
 
         {/* Core Principles */}
         <section className="pb-24 pt-12 relative z-10">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="font-headline text-4xl font-extrabold text-primary mb-4 tracking-tight">Our Core Principles</h2>
-            <p className="text-on-surface-variant max-w-2xl mx-auto text-lg font-medium">The foundation of Project Kaagapay's approach to peer support and trauma-informed care.</p>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="text-center mb-16">
+              <h2 className="font-headline text-4xl font-extrabold text-primary mb-4 tracking-tight">Our Core Principles</h2>
+              <p className="text-on-surface-variant max-w-2xl mx-auto text-lg font-medium">The foundation of Project Kaagapay's approach to peer support and trauma-informed care.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-primary">
+                <Heart className="text-primary mb-6" size={40} />
+                <h3 className="font-headline text-2xl font-bold mb-4">VALIDATION</h3>
+                <p className="text-on-surface-variant leading-relaxed font-medium">Institutional responses should affirm the survivor's feelings and account for their trauma.</p>
+              </div>
+              <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-secondary">
+                <Scale className="text-secondary mb-6" size={40} />
+                <h3 className="font-headline text-2xl font-bold mb-4">EMPOWERMENT</h3>
+                <p className="text-on-surface-variant leading-relaxed font-medium">Survivors should feel capable of participating in the justice process and making decisions about their lives.</p>
+              </div>
+              <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-tertiary">
+                <CheckCircle className="text-tertiary mb-6" size={40} />
+                <h3 className="font-headline text-2xl font-bold mb-4">RECOGNITION</h3>
+                <p className="text-on-surface-variant leading-relaxed font-medium">Validate the survivor's experience and story to foster trust and healing.</p>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-primary">
-              <Heart className="text-primary mb-6" size={40} />
-              <h3 className="font-headline text-2xl font-bold mb-4">VALIDATION</h3>
-              <p className="text-on-surface-variant leading-relaxed font-medium">Institutional responses should affirm the survivor's feelings and account for their trauma.</p>
-            </div>
-            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-secondary">
-              <Scale className="text-secondary mb-6" size={40} />
-              <h3 className="font-headline text-2xl font-bold mb-4">EMPOWERMENT</h3>
-              <p className="text-on-surface-variant leading-relaxed font-medium">Survivors should feel capable of participating in the justice process and making decisions about their lives.</p>
-            </div>
-            <div className="bg-surface-container-lowest p-10 rounded-[3rem] editorial-shadow border-t-8 border-t-tertiary">
-              <CheckCircle className="text-tertiary mb-6" size={40} />
-              <h3 className="font-headline text-2xl font-bold mb-4">RECOGNITION</h3>
-              <p className="text-on-surface-variant leading-relaxed font-medium">Validate the survivor's experience and story to foster trust and healing.</p>
-            </div>
-          </div>
-        </div>
         </section>
       </div>
 
@@ -239,7 +239,6 @@ export default function Volunteer() {
                   </div>
                   <h4 className="font-headline text-2xl font-extrabold text-on-surface mb-1">{displayName}</h4>
                   <p className="text-sm text-secondary font-black uppercase tracking-widest mb-2">{v.status}</p>
-                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed">{v.external_handle}</p>
                   {v.incentive_points > 0 && (
                     <p className="text-xs text-primary font-bold mt-1">⭐ {v.incentive_points} pts</p>
                   )}

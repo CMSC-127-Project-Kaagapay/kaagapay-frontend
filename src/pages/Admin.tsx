@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -14,7 +15,9 @@ import {
   Lock,
   Inbox,
   Clock,
-  Loader2
+  Loader2,
+  Eye,
+  X
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
@@ -36,6 +39,21 @@ function isAdminTicketStatus(value: string | undefined): value is AdminTicketSta
 
 function formatStatus(status: string) {
   return status.replace(/_/g, ' ');
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Not recorded';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not recorded';
+
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function getTicketStatusClasses(status: string) {
@@ -89,6 +107,7 @@ export default function Admin() {
   const [tickets, setTickets] = useState<IncidentTicketResponseDto[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<VolunteerApplicationResponseDto | null>(null);
 
   useEffect(() => {
     if (ticketStatus && !isAdminTicketStatus(ticketStatus)) {
@@ -146,6 +165,24 @@ export default function Admin() {
     fetchTickets();
   }, [selectedTicketStatus]);
 
+  useEffect(() => {
+    if (!selectedApplication) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedApplication(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [selectedApplication]);
+
   const handleAction = async (application_id: string, action: 'approve' | 'reject') => {
     try {
       const token = getAuthToken();
@@ -165,6 +202,11 @@ export default function Admin() {
         prevApps.map(app =>
           app.application_id === application_id ? { ...app, status: action === 'approve' ? 'approved' : 'rejected' } : app
         )
+      );
+      setSelectedApplication(prevApplication =>
+        prevApplication?.application_id === application_id
+          ? { ...prevApplication, status: action === 'approve' ? 'approved' : 'rejected' }
+          : prevApplication
       );
     } catch (err: any) {
       alert(`Error ${action}ing application: ${err.message}`);
@@ -392,7 +434,11 @@ export default function Admin() {
                 </thead>
                 <tbody>
                   {volunteerApplications.map((app) => (
-                    <tr key={app.application_id} className="bg-surface-container-low transition-all hover:bg-white group cursor-pointer">
+                    <tr
+                      key={app.application_id}
+                      onClick={() => setSelectedApplication(app)}
+                      className="bg-surface-container-low transition-all hover:bg-white group cursor-pointer"
+                    >
                       <td className="px-6 py-6 rounded-l-3xl font-bold text-primary">{`${app.first_name} ${app.last_name} (${app.public_alias})`}</td>
                       <td className="px-6 py-6 text-on-surface font-semibold">{app.email}</td>
                       <td className="px-6 py-6 text-on-surface-variant font-medium max-w-xs truncate">{app.motivation}</td>
@@ -408,27 +454,42 @@ export default function Admin() {
                         </span>
                       </td>
                       <td className="px-6 py-6 rounded-r-3xl text-right">
-                        {app.status === 'pending' && (
-                          <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedApplication(app);
+                            }}
+                            className="p-2 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-secondary hover:text-white transition-colors"
+                            title="View application details"
+                          >
+                            <Eye size={20} />
+                          </button>
+                          {app.status === 'pending' && (
+                            <>
                             <button
-                              onClick={() => handleApprove(app.application_id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleApprove(app.application_id);
+                              }}
                               className="p-2 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors"
                               title="Approve"
                             >
                               <CheckCircle size={20} />
                             </button>
                             <button
-                              onClick={() => handleReject(app.application_id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleReject(app.application_id);
+                              }}
                               className="p-2 rounded-full bg-error/10 text-error hover:bg-error hover:text-white transition-colors"
                               title="Reject"
                             >
                               <AlertCircle size={20} />
                             </button>
-                          </div>
-                        )}
-                        {app.status !== 'pending' && (
-                          <span className="text-on-surface-variant text-sm font-medium">Actioned</span>
-                        )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -439,6 +500,107 @@ export default function Admin() {
             {/* Removed "View All Active Reports" button as it's not relevant here */}
           </div>
         </section>
+      )}
+
+      {selectedApplication && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex min-h-dvh w-screen items-center justify-center bg-on-surface/45 p-4 backdrop-blur-sm sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="application-details-title"
+          onClick={() => setSelectedApplication(null)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-[2rem] bg-surface-container-lowest editorial-shadow border border-outline-variant/20"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-6 border-b border-outline-variant/20 px-8 py-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant mb-2">Volunteer Application</p>
+                <h3 id="application-details-title" className="text-2xl font-bold font-headline text-on-surface">
+                  {selectedApplication.first_name} {selectedApplication.last_name}
+                </h3>
+                <p className="text-sm font-semibold text-primary mt-1">@{selectedApplication.public_alias}</p>
+              </div>
+              <button
+                onClick={() => setSelectedApplication(null)}
+                className="p-2 rounded-full bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                title="Close application details"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto max-h-[calc(90vh-196px)] px-8 py-6 space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70">Email</p>
+                  <p className="mt-1 font-semibold text-on-surface break-all">{selectedApplication.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70">External Handle</p>
+                  <p className="mt-1 font-semibold text-on-surface break-all">{selectedApplication.external_handle || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70">Submitted</p>
+                  <p className="mt-1 font-semibold text-on-surface">{formatDateTime(selectedApplication.created_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70">Last Updated</p>
+                  <p className="mt-1 font-semibold text-on-surface">{formatDateTime(selectedApplication.updated_at)}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70 mb-3">Status</p>
+                <span className={cn(
+                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold capitalize",
+                  selectedApplication.status === 'pending'
+                    ? "bg-secondary-container text-on-secondary-container"
+                    : selectedApplication.status === 'approved'
+                      ? "bg-primary/10 text-primary"
+                      : "bg-error/10 text-error"
+                )}>
+                  <span className={cn(
+                    "w-2 h-2 rounded-full",
+                    selectedApplication.status === 'pending' ? "bg-secondary" : selectedApplication.status === 'approved' ? "bg-primary" : "bg-error"
+                  )}></span>
+                  {selectedApplication.status}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant opacity-70 mb-3">Motivation</p>
+                <div className="rounded-3xl bg-surface-container-low p-6 text-on-surface-variant font-medium leading-7 whitespace-pre-wrap break-words">
+                  {selectedApplication.motivation}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-outline-variant/20 px-8 py-5 bg-surface-container-low">
+              <p className="text-xs font-semibold text-on-surface-variant">
+                Application ID: <span className="font-mono break-all">{selectedApplication.application_id}</span>
+              </p>
+              {selectedApplication.status === 'pending' && (
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => handleReject(selectedApplication.application_id)}
+                    className="px-5 py-3 rounded-xl bg-error/10 text-error font-black text-sm hover:bg-error hover:text-white transition-colors"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedApplication.application_id)}
+                    className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm hover:opacity-90 transition-opacity"
+                  >
+                    Approve
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Administrative Toolkit */}
