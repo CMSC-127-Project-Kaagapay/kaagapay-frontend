@@ -1,0 +1,99 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Target environment stage to deploy"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  determine-stage:
+    runs-on: ubuntu-latest
+    outputs:
+      stage: ${{ steps.set-stage.outputs.stage }}
+    steps:
+      - id: set-stage
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "stage=${{ github.event.inputs.stage }}" >> $GITHUB_OUTPUT
+          else
+            echo "stage=dev" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    needs: determine-stage
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-stage.outputs.stage }}
+    env:
+      STAGE: ${{ needs.determine-stage.outputs.stage }}
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'ap-southeast-1' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch Infrastructure Outputs from CloudFormation
+        run: |
+          echo "Fetching CloudFormation stack outputs for stage: ${{ env.STAGE }}..."
+          
+          BUCKET=$(aws cloudformation list-exports --query "Exports[?Name=='${{ env.STAGE }}-WebsiteBucketName'].Value" --output text)
+          DIST_ID=$(aws cloudformation list-exports --query "Exports[?Name=='${{ env.STAGE }}-CloudFrontDistributionId'].Value" --output text)
+          API_URL=$(aws cloudformation list-exports --query "Exports[?Name=='${{ env.STAGE }}-ApiEndpointUrl'].Value" --output text)
+
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            echo "Error: Could not find CloudFormation export for '${{ env.STAGE }}-WebsiteBucketName'. Has the infrastructure stack been deployed?"
+            exit 1
+          fi
+
+          echo "TARGET_BUCKET=$BUCKET" >> $GITHUB_ENV
+          echo "DISTRIBUTION_ID=$DIST_ID" >> $GITHUB_ENV
+          echo "API_ENDPOINT_URL=$API_URL" >> $GITHUB_ENV
+          echo "Discovered Bucket: $BUCKET"
+          echo "Discovered Distribution: $DIST_ID"
+          echo "Discovered API URL: $API_URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Frontend Dependencies
+        run: npm ci || npm install
+
+      - name: Build React App
+        env:
+          VITE_API_BASE_URL: ${{ env.API_ENDPOINT_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Sync Build to S3 Website Bucket
+        run: |
+          echo "Syncing build artifacts to s3://${{ env.TARGET_BUCKET }}..."
+          aws s3 sync dist/ "s3://${{ env.TARGET_BUCKET }}" --delete
+
+      - name: Invalidate CloudFront Cache
+        if: env.DISTRIBUTION_ID != 'None' && env.DISTRIBUTION_ID != ''
+        run: |
+          echo "Invalidating CloudFront cache for distribution: ${{ env.DISTRIBUTION_ID }}..."
+          aws cloudfront create-invalidation --distribution-id "${{ env.DISTRIBUTION_ID }}" --paths "/*"
