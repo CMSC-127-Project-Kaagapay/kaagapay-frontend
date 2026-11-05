@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   TrendingDown, 
@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import ConfirmDeleteDialog from '@/src/components/ConfirmDeleteDialog';
+import TicketFilters from '@/src/components/TicketFilters';
+import Pagination from '@/src/components/Pagination';
 import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
 import { 
   getVolunteerApplications, 
@@ -28,6 +30,7 @@ import {
   rejectVolunteerApplication,
   getAdminTicketsByStatus,
   getDeletedAdminTickets,
+  getVolunteers,
   deleteAdminTicket,
   restoreAdminTicket,
   AdminTicketStatus,
@@ -42,6 +45,13 @@ type AdminTicketView = AdminTicketStatus | 'deleted';
 
 function isAdminTicketView(value: string | undefined): value is AdminTicketView {
   return value === 'deleted' || ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
+}
+
+const TICKETS_PAGE_SIZE = 25;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatDay(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatStatus(status: string) {
@@ -109,6 +119,20 @@ export default function Admin() {
   const { ticketStatus } = useParams<{ ticketStatus?: string }>();
   const selectedTicketStatus: AdminTicketView = isAdminTicketView(ticketStatus) ? ticketStatus : 'pending';
   const isDeletedView = selectedTicketStatus === 'deleted';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const volunteerFilter = searchParams.get('volunteer') ?? '';
+  const rawFrom = searchParams.get('from') ?? '';
+  const rawTo = searchParams.get('to') ?? '';
+  const dateFrom = ISO_DATE.test(rawFrom) ? rawFrom : '';
+  const dateTo = ISO_DATE.test(rawTo) ? rawTo : '';
+  const dateError = dateFrom && dateTo && dateFrom > dateTo ? 'The end date must be on or after the start date.' : null;
+  const pageParam = Number.parseInt(searchParams.get('page') ?? '1', 10);
+  const currentPage = Number.isFinite(pageParam) && pageParam >= 1 ? pageParam : 1;
+  const hasActiveFilters = Boolean(volunteerFilter || dateFrom || dateTo);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [volunteerOptions, setVolunteerOptions] = useState<{ id: string; name: string }[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const loadedStatusRef = useRef<AdminTicketView | null>(null);
   const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,34 +178,92 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    getVolunteers()
+      .then((list) =>
+        setVolunteerOptions(
+          list
+            .map((v) => ({ id: v.id, name: `${v.first_name} ${v.last_name}`.trim() || v.external_handle }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        ),
+      )
+      .catch(() => setVolunteerOptions([]));
+  }, []);
+
+  useEffect(() => {
+    if (dateError) return; // The error is shown next to the date fields; don't query with a reversed range.
+    let cancelled = false;
+
     async function fetchTickets() {
+      // Keep current rows visible while refetching the same queue; clear them when the queue itself changes.
+      if (loadedStatusRef.current !== selectedTicketStatus) {
+        setTickets([]);
+        setTotalTickets(0);
+        loadedStatusRef.current = selectedTicketStatus;
+      }
       setTicketsLoading(true);
       setTicketsError(null);
       try {
         const token = getAuthToken();
         if (!token) {
           setTicketsError("Authentication token not found. Please log in as an administrator.");
-          setTicketsLoading(false);
           return;
         }
 
         if (selectedTicketStatus === 'deleted') {
-          setTickets(await getDeletedAdminTickets(token));
+          const deleted = await getDeletedAdminTickets(token);
+          if (cancelled) return;
+          setTickets(deleted);
+          setTotalTickets(deleted.length);
         } else {
-          const data = await getAdminTicketsByStatus(selectedTicketStatus, token);
-          setTickets([...data].sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          ));
+          const result = await getAdminTicketsByStatus(selectedTicketStatus, token, {
+            volunteerId: volunteerFilter || undefined,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            page: currentPage,
+            pageSize: TICKETS_PAGE_SIZE,
+          });
+          if (cancelled) return;
+          const lastPage = Math.max(1, Math.ceil(result.total / TICKETS_PAGE_SIZE));
+          if (result.items.length === 0 && result.total > 0 && currentPage > lastPage) {
+            // The last row on this page was removed; step back to the new last page.
+            updateParams({ page: lastPage === 1 ? '' : String(lastPage) });
+            return;
+          }
+          setTickets(result.items);
+          setTotalTickets(result.total);
         }
       } catch (err: any) {
-        setTicketsError(err.message);
+        if (!cancelled) setTicketsError(err.message);
       } finally {
-        setTicketsLoading(false);
+        if (!cancelled) setTicketsLoading(false);
       }
     }
 
     fetchTickets();
-  }, [selectedTicketStatus]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTicketStatus, volunteerFilter, dateFrom, dateTo, currentPage, reloadKey, dateError]);
+
+  function updateParams(changes: Record<string, string>, resetPage = false) {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(changes).forEach(([key, value]) => (value ? next.set(key, value) : next.delete(key)));
+    if (resetPage) next.delete('page');
+    setSearchParams(next);
+  }
+
+  const clearFilters = () => {
+    const next = new URLSearchParams(searchParams);
+    ['volunteer', 'from', 'to', 'page'].forEach((key) => next.delete(key));
+    setSearchParams(next);
+  };
+
+  const goToQueue = (view: AdminTicketView) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('page'); // keep the volunteer and date filters, start the new queue on page 1
+    const query = view === 'deleted' ? '' : next.toString();
+    navigate(`/admin/tickets/${view}${query ? `?${query}` : ''}`);
+  };
 
   useEffect(() => {
     setTicketNotice(null);
@@ -198,7 +280,7 @@ export default function Admin() {
     setDeleteError(null);
     try {
       await deleteAdminTicket(ticketToDelete.public_case_id, token, reason);
-      setTickets(prev => (prev as IncidentTicketResponseDto[]).filter(t => t.id !== ticketToDelete.id));
+      setReloadKey((key) => key + 1);
       setTicketNotice({ text: `Ticket ${ticketToDelete.public_case_id} deleted.`, failed: false });
       setTicketToDelete(null);
       // The row (and its Delete button) is gone, so send focus to the section heading.
@@ -224,7 +306,7 @@ export default function Admin() {
     }
     try {
       await restoreAdminTicket(ticket.public_case_id, token);
-      setTickets(prev => (prev as IncidentTicketResponseDto[]).filter(t => t.id !== ticket.id));
+      setReloadKey((key) => key + 1);
       setTicketNotice({ text: `Ticket ${ticket.public_case_id} restored.`, failed: false });
       requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
     } catch (err: any) {
@@ -249,6 +331,12 @@ export default function Admin() {
       document.body.style.overflow = '';
     };
   }, [selectedApplication]);
+
+  const filterParts = [
+    volunteerFilter ? (volunteerOptions.find((v) => v.id === volunteerFilter)?.name ?? 'that volunteer') : '',
+    dateFrom && dateTo ? `${formatDay(dateFrom)} to ${formatDay(dateTo)}` : dateFrom ? `from ${formatDay(dateFrom)}` : dateTo ? `up to ${formatDay(dateTo)}` : '',
+  ].filter(Boolean);
+  const noMatchMessage = `No ${formatStatus(selectedTicketStatus)} tickets for ${filterParts.join(', ')}.`;
 
   const handleAction = async (application_id: string, action: 'approve' | 'reject') => {
     try {
@@ -391,7 +479,7 @@ export default function Admin() {
                 return (
                   <button
                     key={status}
-                    onClick={() => navigate(`/admin/tickets/${status}`)}
+                    onClick={() => goToQueue(status)}
                     className={cn(
                       "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
                       isSelected
@@ -405,7 +493,7 @@ export default function Admin() {
                 );
               })}
               <button
-                onClick={() => navigate('/admin/tickets/deleted')}
+                onClick={() => goToQueue('deleted')}
                 aria-current={isDeletedView ? 'page' : undefined}
                 className={cn(
                   "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
@@ -419,7 +507,37 @@ export default function Admin() {
             </div>
           </div>
 
-          {ticketsLoading && (
+          {!isDeletedView && (
+            <TicketFilters
+              values={{ volunteer: volunteerFilter, from: dateFrom, to: dateTo }}
+              volunteers={volunteerOptions}
+              dateError={dateError}
+              hasActiveFilters={hasActiveFilters}
+              onChange={(next) =>
+                updateParams(
+                  {
+                    ...(next.volunteer !== undefined && { volunteer: next.volunteer }),
+                    ...(next.from !== undefined && { from: next.from }),
+                    ...(next.to !== undefined && { to: next.to }),
+                  },
+                  true,
+                )
+              }
+              onClear={clearFilters}
+            />
+          )}
+
+          <p aria-live="polite" className="mb-3 text-sm font-medium text-on-surface-variant tabular-nums">
+            {!ticketsLoading && !ticketsError && !dateError && (
+              totalTickets === 0
+                ? ''
+                : isDeletedView
+                  ? `${totalTickets} deleted ${totalTickets === 1 ? 'ticket' : 'tickets'}`
+                  : `Showing ${(currentPage - 1) * TICKETS_PAGE_SIZE + 1}–${(currentPage - 1) * TICKETS_PAGE_SIZE + tickets.length} of ${totalTickets} ${formatStatus(selectedTicketStatus)} tickets`
+            )}
+          </p>
+
+          {ticketsLoading && tickets.length === 0 && (
             <div className="py-16 flex items-center justify-center gap-3 text-on-surface-variant font-bold">
               <Loader2 className="animate-spin text-primary" size={20} />
               Loading {formatStatus(selectedTicketStatus)} tickets...
@@ -427,22 +545,44 @@ export default function Admin() {
           )}
 
           {!ticketsLoading && ticketsError && (
-            <p className="py-12 text-error text-center font-medium">{ticketsError}</p>
+            <div className="py-12 text-center space-y-3">
+              <p className="text-on-surface font-medium">Could not load tickets: {ticketsError}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((key) => key + 1)}
+                className="min-h-11 px-4 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Try again
+              </button>
+            </div>
           )}
 
-          {!ticketsLoading && !ticketsError && tickets.length === 0 && (
+          {!ticketsLoading && !ticketsError && !dateError && tickets.length === 0 && (
             <div className="py-16 text-center space-y-4">
               <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mx-auto opacity-50">
                 <Inbox size={32} />
               </div>
               <p className="text-on-surface-variant font-medium">
-                {isDeletedView ? 'No deleted tickets.' : `No ${formatStatus(selectedTicketStatus)} incident tickets found.`}
+                {isDeletedView
+                  ? 'No deleted tickets.'
+                  : hasActiveFilters
+                    ? noMatchMessage
+                    : `No ${formatStatus(selectedTicketStatus)} incident tickets found.`}
               </p>
+              {hasActiveFilters && !isDeletedView && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="min-h-11 px-4 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           )}
 
-          {!ticketsLoading && !ticketsError && tickets.length > 0 && (
-            <div className="overflow-x-auto">
+          {!ticketsError && tickets.length > 0 && (
+            <div className="overflow-x-auto" aria-busy={ticketsLoading}>
               <table className="w-full text-left border-separate border-spacing-y-4">
                 <thead>
                   <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
@@ -521,6 +661,15 @@ export default function Admin() {
                 </tbody>
               </table>
             </div>
+          )}
+
+          {!isDeletedView && !ticketsError && (
+            <Pagination
+              page={currentPage}
+              totalPages={Math.max(1, Math.ceil(totalTickets / TICKETS_PAGE_SIZE))}
+              onPageChange={(page) => updateParams({ page: page === 1 ? '' : String(page) })}
+              label="Ticket pages"
+            />
           )}
         </div>
       </section>
