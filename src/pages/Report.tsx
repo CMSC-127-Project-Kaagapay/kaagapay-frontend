@@ -20,6 +20,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
 import { getVolunteers, createIncidentReport, VolunteerResponseDto } from "@/src/lib/api";
+import CaseIdDialog from "@/src/components/CaseIdDialog";
 
 export default function Report() {
   const navigate = useNavigate();
@@ -31,7 +32,6 @@ export default function Report() {
     public_case_id: string;
     status: string;
   } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // Form State
   const [incidentType, setIncidentType] = useState("");
@@ -54,18 +54,10 @@ export default function Report() {
     fetchVolunteers();
   }, []);
 
-  function handleCopy() {
-    if (!caseResult) return;
-    navigator.clipboard.writeText(caseResult.public_case_id);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   function handleCloseModal() {
+    // Not /track?token=<id>: that would leave the Case ID in the address bar and browser history.
     setCaseResult(null);
-    if (caseResult) {
-      navigate(`/track?token=${caseResult.public_case_id}`);
-    }
+    navigate("/track");
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,92 +97,10 @@ export default function Report() {
 
   return (
     <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto">
-      {/* Status Modal: Show Report ID */}
-      <AnimatePresence>
-        {caseResult && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-6"
-          >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.85, opacity: 0, y: 20 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className="bg-surface-container-lowest rounded-3xl p-10 max-w-md w-full editorial-shadow relative"
-            >
-              <button
-                onClick={handleCloseModal}
-                className="absolute top-5 right-5 p-2 rounded-xl hover:bg-surface-container-low transition-colors text-on-surface-variant"
-              >
-                <X size={18} />
-              </button>
-
-              <div className="flex flex-col items-center text-center gap-6">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 250,
-                    damping: 15,
-                    delay: 0.1,
-                  }}
-                  className="w-20 h-20 rounded-full bg-secondary-container flex items-center justify-center"
-                >
-                  <CheckCircle size={40} className="text-secondary" />
-                </motion.div>
-
-                <div>
-                  <h2 className="font-headline text-2xl font-extrabold text-on-surface mb-2">
-                    Report Submitted
-                  </h2>
-                  <p className="text-on-surface-variant text-sm leading-relaxed">
-                    Your report has been securely received. Please save your
-                    Case ID — you'll need it to track your report's progress.
-                  </p>
-                </div>
-
-                <div className="w-full bg-surface-container-low rounded-2xl p-5 flex flex-col gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    Your Case ID
-                  </span>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-lg font-extrabold text-primary tracking-wide break-all">
-                      {caseResult.public_case_id}
-                    </span>
-                    <button
-                      onClick={handleCopy}
-                      className="shrink-0 p-2 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant"
-                      title="Copy Case ID"
-                    >
-                      {copied ? (
-                        <Check size={16} className="text-secondary" />
-                      ) : (
-                        <Copy size={16} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold uppercase tracking-widest">
-                  <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                  Status: {caseResult.status.replace("_", " ")}
-                </div>
-
-                <button
-                  onClick={handleCloseModal}
-                  className="w-full py-4 bg-primary text-on-primary font-extrabold rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* After submitting: show the Case ID once, and make sure the person has saved it. */}
+      {caseResult && (
+        <CaseIdDialog caseId={caseResult.public_case_id} status={caseResult.status} onClose={handleCloseModal} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-12 mb-8">
