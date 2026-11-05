@@ -65,7 +65,7 @@ export default function ConfirmDeleteDialog({ caseId, submitting, error, onConfi
           Delete ticket {caseId}?
         </h2>
         <p id={descriptionId} className="mt-2 text-sm text-on-surface-variant">
-          This ticket moves to Deleted tickets. You can restore it from there.
+          This ticket moves to Deleted tickets, where you can restore it for a limited time. After that it is removed for good.
         </p>
 
         <label htmlFor={reasonId} className="mt-5 block text-sm font-semibold text-on-surface">
