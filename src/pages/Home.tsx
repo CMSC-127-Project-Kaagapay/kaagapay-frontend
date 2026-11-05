@@ -123,7 +123,7 @@ export default function Home() {
                 Launched on January 28, 2025 by Gabriela Youth UP Mindanao, Project Kaagapay aims to be a network of young women and young students, to create a peer facilitating and psychosocial support system for victim-survivors of SH/SA in campus.
               </p>
             </div>
-            <div className="flex items-center gap-12 mt-12">
+            <div className="flex flex-wrap items-center gap-x-12 gap-y-6 mt-12">
               <div className="flex flex-col">
                 <span className="text-4xl font-extrabold text-primary">
                   Growing
