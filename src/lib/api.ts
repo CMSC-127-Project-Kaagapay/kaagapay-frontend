@@ -208,6 +208,12 @@ export interface IncidentTicketResponseDto {
   expires_at: string;
 }
 
+export interface DeletedTicketResponseDto extends IncidentTicketResponseDto {
+  deleted_at: string;
+  deleted_by?: string;
+  deleted_reason?: string;
+}
+
 export type AdminTicketStatus = "pending" | "claimed" | "in_progress" | "resolved" | "closed";
 
 export interface IncidentTicketCreateDto {
@@ -318,6 +324,53 @@ export async function createVolunteer(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(volunteer),
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Soft-deletes a ticket. It is hidden everywhere and can be restored.
+ */
+export async function deleteAdminTicket(
+  publicCaseId: string,
+  token: string,
+  reason?: string,
+): Promise<DeletedTicketResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${encodeURIComponent(publicCaseId)}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Fetches soft-deleted tickets, newest deletion first.
+ */
+export async function getDeletedAdminTickets(token: string): Promise<DeletedTicketResponseDto[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/deleted`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Restores a soft-deleted ticket.
+ */
+export async function restoreAdminTicket(
+  publicCaseId: string,
+  token: string,
+): Promise<IncidentTicketResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${encodeURIComponent(publicCaseId)}/restore`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
   return handleApiResponse(response);
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,21 +20,28 @@ import {
   X
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import ConfirmDeleteDialog from '@/src/components/ConfirmDeleteDialog';
 import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
 import { 
   getVolunteerApplications, 
   approveVolunteerApplication, 
   rejectVolunteerApplication,
   getAdminTicketsByStatus,
+  getDeletedAdminTickets,
+  deleteAdminTicket,
+  restoreAdminTicket,
   AdminTicketStatus,
   IncidentTicketResponseDto,
+  DeletedTicketResponseDto,
   VolunteerApplicationResponseDto // Import DTO from api.ts
 } from '@/src/lib/api'; // Import API functions from api.ts
 
 const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'claimed', 'in_progress', 'resolved', 'closed'];
 
-function isAdminTicketStatus(value: string | undefined): value is AdminTicketStatus {
-  return ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
+type AdminTicketView = AdminTicketStatus | 'deleted';
+
+function isAdminTicketView(value: string | undefined): value is AdminTicketView {
+  return value === 'deleted' || ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
 }
 
 function formatStatus(status: string) {
@@ -100,17 +107,24 @@ function getTicketStatusClasses(status: string) {
 export default function Admin() {
   const navigate = useNavigate();
   const { ticketStatus } = useParams<{ ticketStatus?: string }>();
-  const selectedTicketStatus = isAdminTicketStatus(ticketStatus) ? ticketStatus : 'pending';
+  const selectedTicketStatus: AdminTicketView = isAdminTicketView(ticketStatus) ? ticketStatus : 'pending';
+  const isDeletedView = selectedTicketStatus === 'deleted';
   const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [tickets, setTickets] = useState<IncidentTicketResponseDto[]>([]);
+  const [tickets, setTickets] = useState<DeletedTicketResponseDto[] | IncidentTicketResponseDto[]>([]);
+  const [ticketToDelete, setTicketToDelete] = useState<IncidentTicketResponseDto | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [ticketNotice, setTicketNotice] = useState<{ text: string; failed: boolean } | null>(null);
+  const ticketsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<VolunteerApplicationResponseDto | null>(null);
 
   useEffect(() => {
-    if (ticketStatus && !isAdminTicketStatus(ticketStatus)) {
+    if (ticketStatus && !isAdminTicketView(ticketStatus)) {
       navigate('/admin/tickets/pending', { replace: true });
     }
   }, [navigate, ticketStatus]);
@@ -151,10 +165,14 @@ export default function Admin() {
           return;
         }
 
-        const data = await getAdminTicketsByStatus(selectedTicketStatus, token);
-        setTickets([...data].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        ));
+        if (selectedTicketStatus === 'deleted') {
+          setTickets(await getDeletedAdminTickets(token));
+        } else {
+          const data = await getAdminTicketsByStatus(selectedTicketStatus, token);
+          setTickets([...data].sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ));
+        }
       } catch (err: any) {
         setTicketsError(err.message);
       } finally {
@@ -164,6 +182,55 @@ export default function Admin() {
 
     fetchTickets();
   }, [selectedTicketStatus]);
+
+  useEffect(() => {
+    setTicketNotice(null);
+  }, [selectedTicketStatus]);
+
+  const handleDeleteTicket = async (reason: string) => {
+    if (!ticketToDelete) return;
+    const token = getAuthToken();
+    if (!token) {
+      setDeleteError('Sign in again as an administrator.');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAdminTicket(ticketToDelete.public_case_id, token, reason);
+      setTickets(prev => (prev as IncidentTicketResponseDto[]).filter(t => t.id !== ticketToDelete.id));
+      setTicketNotice({ text: `Ticket ${ticketToDelete.public_case_id} deleted.`, failed: false });
+      setTicketToDelete(null);
+      // The row (and its Delete button) is gone, so send focus to the section heading.
+      requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
+    } catch (err: any) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    setTicketToDelete(null);
+    setDeleteError(null);
+    requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  };
+
+  const handleRestoreTicket = async (ticket: IncidentTicketResponseDto) => {
+    const token = getAuthToken();
+    if (!token) {
+      setTicketNotice({ text: 'Sign in again as an administrator.', failed: true });
+      return;
+    }
+    try {
+      await restoreAdminTicket(ticket.public_case_id, token);
+      setTickets(prev => (prev as IncidentTicketResponseDto[]).filter(t => t.id !== ticket.id));
+      setTicketNotice({ text: `Ticket ${ticket.public_case_id} restored.`, failed: false });
+      requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
+    } catch (err: any) {
+      setTicketNotice({ text: `Could not restore ${ticket.public_case_id}: ${err.message}`, failed: true });
+    }
+  };
 
   useEffect(() => {
     if (!selectedApplication) return;
@@ -304,9 +371,17 @@ export default function Admin() {
         <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             <div>
-              <h2 className="text-2xl font-bold font-headline text-on-surface">Incident Tickets</h2>
+              <h2 ref={ticketsHeadingRef} tabIndex={-1} className="text-2xl font-bold font-headline text-on-surface">Incident Tickets</h2>
               <p className="text-on-surface-variant text-sm font-medium mt-1">
-                Viewing {formatStatus(selectedTicketStatus)} reports from the admin ticket queue.
+                {isDeletedView
+                  ? 'Viewing deleted tickets. Restore one to put it back in its queue.'
+                  : `Viewing ${formatStatus(selectedTicketStatus)} reports from the admin ticket queue.`}
+              </p>
+              <p
+                role={ticketNotice?.failed ? 'alert' : 'status'}
+                className={cn('mt-2 text-sm font-semibold text-on-surface', !ticketNotice && 'sr-only')}
+              >
+                {ticketNotice?.text}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -329,6 +404,18 @@ export default function Admin() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => navigate('/admin/tickets/deleted')}
+                aria-current={isDeletedView ? 'page' : undefined}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                  isDeletedView
+                    ? "bg-surface-container-high text-on-surface"
+                    : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
+                )}
+              >
+                Deleted
+              </button>
             </div>
           </div>
 
@@ -349,7 +436,7 @@ export default function Admin() {
                 <Inbox size={32} />
               </div>
               <p className="text-on-surface-variant font-medium">
-                No {formatStatus(selectedTicketStatus)} incident tickets found.
+                {isDeletedView ? 'No deleted tickets.' : `No ${formatStatus(selectedTicketStatus)} incident tickets found.`}
               </p>
             </div>
           )}
@@ -365,11 +452,12 @@ export default function Admin() {
                     <th className="px-6 pb-2">Routing</th>
                     <th className="px-6 pb-2">Volunteer</th>
                     <th className="px-6 pb-2">Status</th>
-                    <th className="px-6 pb-2 text-right">Created</th>
+                    <th className="px-6 pb-2 text-right">{isDeletedView ? 'Deleted' : 'Created'}</th>
+                    <th className="px-6 pb-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tickets.map((ticket) => {
+                  {(tickets as DeletedTicketResponseDto[]).map((ticket) => {
                     const statusClasses = getTicketStatusClasses(ticket.status);
                     return (
                       <tr key={ticket.id} className="bg-surface-container-low transition-all hover:bg-white group">
@@ -386,16 +474,46 @@ export default function Admin() {
                             {formatStatus(ticket.status)}
                           </span>
                         </td>
-                        <td className="px-6 py-6 rounded-r-3xl text-right text-on-surface font-semibold whitespace-nowrap">
+                        <td className="px-6 py-6 text-right text-on-surface font-semibold whitespace-nowrap">
                           <div className="inline-flex items-center justify-end gap-2">
                             <Clock size={14} className="text-outline" />
-                            {new Date(ticket.created_at).toLocaleString([], {
+                            {new Date(isDeletedView && ticket.deleted_at ? ticket.deleted_at : ticket.created_at).toLocaleString([], {
                               month: 'short',
                               day: '2-digit',
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </div>
+                          {isDeletedView && ticket.deleted_reason && (
+                            <p className="text-xs font-medium text-on-surface-variant max-w-48 truncate" title={ticket.deleted_reason}>
+                              {ticket.deleted_reason}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-6 py-6 rounded-r-3xl text-right whitespace-nowrap">
+                          {isDeletedView ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreTicket(ticket)}
+                              aria-label={`Restore ticket ${ticket.public_case_id}`}
+                              className="min-h-11 px-3 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                deleteTriggerRef.current = event.currentTarget;
+                                setDeleteError(null);
+                                setTicketToDelete(ticket);
+                              }}
+                              aria-label={`Delete ticket ${ticket.public_case_id}`}
+                              className="min-h-11 px-3 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -406,6 +524,16 @@ export default function Admin() {
           )}
         </div>
       </section>
+
+      {ticketToDelete && (
+        <ConfirmDeleteDialog
+          caseId={ticketToDelete.public_case_id}
+          submitting={deleting}
+          error={deleteError}
+          onConfirm={handleDeleteTicket}
+          onCancel={closeDeleteDialog}
+        />
+      )}
 
       {loading && <p className="text-on-surface-variant text-center">Loading volunteer applications...</p>}
       {error && <p className="text-error text-center">{error}</p>}
