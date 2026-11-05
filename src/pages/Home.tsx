@@ -42,10 +42,8 @@ export default function Home() {
             src={heroPhoto}
             referrerPolicy="no-referrer"
           />
-          {/* Solid primary on the left fading into the image on the right, keeping it vibrant */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-transparent"></div>
-          {/* A subtle secondary color overlay for depth without darkening */}
-          <div className="absolute inset-0 bg-gradient-to-r from-secondary/60 via-secondary/20 to-transparent mix-blend-overlay"></div>
+          {/* Solid primary behind the text. On wide screens it fades out early so the people in the photo stay visible; on narrower screens the text covers more of the photo, so the overlay stays strong for contrast. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 via-50% to-primary/70 xl:via-40% xl:to-transparent xl:to-75%"></div>
         </div>
 
         {/* Content Layer (Left-aligned) */}
