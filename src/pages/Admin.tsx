@@ -245,21 +245,25 @@ export default function Admin() {
     };
   }, [selectedTicketStatus, volunteerFilter, dateFrom, dateTo, currentPage, reloadKey, dateError]);
 
+  // Read the address bar as it is right now. Two filter changes can land before React re-renders
+  // (a date picker or autofill setting both dates), and the render's copy of the params would drop the first.
+  const liveParams = () => new URLSearchParams(window.location.search);
+
   function updateParams(changes: Record<string, string>, resetPage = false) {
-    const next = new URLSearchParams(searchParams);
+    const next = liveParams();
     Object.entries(changes).forEach(([key, value]) => (value ? next.set(key, value) : next.delete(key)));
     if (resetPage) next.delete('page');
     setSearchParams(next);
   }
 
   const clearFilters = () => {
-    const next = new URLSearchParams(searchParams);
+    const next = liveParams();
     ['volunteer', 'from', 'to', 'page'].forEach((key) => next.delete(key));
     setSearchParams(next);
   };
 
   const goToQueue = (view: AdminTicketView) => {
-    const next = new URLSearchParams(searchParams);
+    const next = liveParams();
     next.delete('page'); // keep the volunteer and date filters, start the new queue on page 1
     const query = view === 'deleted' ? '' : next.toString();
     navigate(`/admin/tickets/${view}${query ? `?${query}` : ''}`);
