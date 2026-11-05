@@ -295,35 +295,40 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
   return handleApiResponse(response);
 }
 
+export interface AdminTicketFilters {
+  volunteerId?: string;
+  dateFrom?: string; // YYYY-MM-DD, inclusive
+  dateTo?: string; // YYYY-MM-DD, inclusive
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TicketPage {
+  items: IncidentTicketResponseDto[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 /**
- * Fetches all incident tickets for admins, filtered by status.
+ * Fetches one page of incident tickets for admins, filtered by status and optional filters.
  */
 export async function getAdminTicketsByStatus(
   ticketStatus: AdminTicketStatus,
   token: string,
-): Promise<IncidentTicketResponseDto[]> {
-  const response = await fetch(`${API_BASE_URL}/admin/tickets/${ticketStatus}`, {
+  filters: AdminTicketFilters = {},
+): Promise<TicketPage> {
+  const params = new URLSearchParams();
+  if (filters.volunteerId) params.set("volunteer_id", filters.volunteerId);
+  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+  if (filters.dateTo) params.set("date_to", filters.dateTo);
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("page_size", String(filters.pageSize));
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${ticketStatus}${query ? `?${query}` : ""}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-  });
-  return handleApiResponse(response);
-}
-
-/**
- * Creates a new volunteer.
- * @param volunteer The volunteer data to create.
- * @returns A promise that resolves with the created volunteer record.
- */
-export async function createVolunteer(
-  volunteer: Partial<VolunteerPublicRecord>,
-): Promise<VolunteerPublicRecord> {
-  const response = await fetch(`${API_BASE_URL}/volunteers`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(volunteer),
   });
   return handleApiResponse(response);
 }
