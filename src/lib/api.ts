@@ -74,13 +74,33 @@ export interface VolunteerPublicRecord {
   profile_image_url: string | null;
 }
 
+/** An API error that may carry per-field messages (the API can return these on 422). */
+export class ApiError extends Error {
+  fields: Record<string, string>;
+  status: number;
+
+  constructor(message: string, status: number, fields: Record<string, string> = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.fields = fields;
+  }
+}
+
 // Function to handle API responses and throw errors for non-OK status
 async function handleApiResponse(response: Response) {
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(
-      errorData.detail || `API request failed with status ${response.status}`,
-    );
+    const errorData = await response.json().catch(() => ({}));
+    const detail = errorData.detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      // {field: message} from the API
+      throw new ApiError("Check the highlighted fields.", response.status, detail);
+    }
+    if (Array.isArray(detail)) {
+      // FastAPI's own validation errors
+      throw new ApiError(detail.map((d: any) => d.msg).join(" "), response.status);
+    }
+    throw new ApiError(detail || `API request failed with status ${response.status}`, response.status);
   }
   return response.json();
 }
@@ -212,6 +232,8 @@ export interface DeletedTicketResponseDto extends IncidentTicketResponseDto {
   deleted_at: string;
   deleted_by?: string;
   deleted_reason?: string;
+  /** When it is removed for good, unless restored first. */
+  purge_at?: string;
 }
 
 export type AdminTicketStatus = "pending" | "requested" | "claimed" | "in_progress" | "resolved" | "closed";
@@ -451,5 +473,21 @@ export async function updateVolunteerById(
  */
 export async function getProfileImageUploadUrl(): Promise<{ upload_url: string; key: string }> {
   const response = await fetch(`${API_BASE_URL}/volunteers/profile-image-upload-url`);
+  return handleApiResponse(response);
+}
+
+
+// --- Admin session check ---
+
+export interface AdminMe {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string | null;
+}
+
+/** Asks the API whether the signed-in user is an admin. 401 = not signed in, 403 = signed in but not an admin. */
+export async function getAdminMe(token: string): Promise<AdminMe> {
+  const response = await fetch(`${API_BASE_URL}/admin/me`, { headers: { Authorization: `Bearer ${token}` } });
   return handleApiResponse(response);
 }
