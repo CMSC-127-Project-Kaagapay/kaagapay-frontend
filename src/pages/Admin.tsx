@@ -51,6 +51,10 @@ function isAdminTicketView(value: string | undefined): value is AdminTicketView 
 const TICKETS_PAGE_SIZE = 25;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function formatDay(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
@@ -284,9 +288,14 @@ export default function Admin() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteAdminTicket(ticketToDelete.public_case_id, token, reason);
+      const deleted = await deleteAdminTicket(ticketToDelete.public_case_id, token, reason);
       setReloadKey((key) => key + 1);
-      setTicketNotice({ text: `Ticket ${ticketToDelete.public_case_id} deleted.`, failed: false });
+      setTicketNotice({
+        text: deleted.purge_at
+          ? `Ticket ${ticketToDelete.public_case_id} deleted. You can restore it until ${formatDate(deleted.purge_at)}.`
+          : `Ticket ${ticketToDelete.public_case_id} deleted.`,
+        failed: false,
+      });
       setTicketToDelete(null);
       // The row (and its Delete button) is gone, so send focus to the section heading.
       requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
@@ -629,6 +638,9 @@ export default function Admin() {
                               minute: '2-digit'
                             })}
                           </div>
+                          {isDeletedView && ticket.purge_at && (
+                            <p className="text-xs font-medium text-on-surface-variant">Restore until {formatDate(ticket.purge_at)}</p>
+                          )}
                           {isDeletedView && ticket.deleted_reason && (
                             <p className="text-xs font-medium text-on-surface-variant max-w-48 truncate" title={ticket.deleted_reason}>
                               {ticket.deleted_reason}
