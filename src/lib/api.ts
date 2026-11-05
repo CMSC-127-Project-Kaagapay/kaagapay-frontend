@@ -214,7 +214,7 @@ export interface DeletedTicketResponseDto extends IncidentTicketResponseDto {
   deleted_reason?: string;
 }
 
-export type AdminTicketStatus = "pending" | "claimed" | "in_progress" | "resolved" | "closed";
+export type AdminTicketStatus = "pending" | "requested" | "claimed" | "in_progress" | "resolved" | "closed";
 
 export interface IncidentTicketCreateDto {
   demographic: string;

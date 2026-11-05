@@ -39,7 +39,8 @@ import {
   VolunteerApplicationResponseDto // Import DTO from api.ts
 } from '@/src/lib/api'; // Import API functions from api.ts
 
-const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'claimed', 'in_progress', 'resolved', 'closed'];
+// 'requested' = a report sent to one chosen volunteer, who has 15 minutes to accept before it returns to 'pending'.
+const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'requested', 'claimed', 'in_progress', 'resolved', 'closed'];
 
 type AdminTicketView = AdminTicketStatus | 'deleted';
 
