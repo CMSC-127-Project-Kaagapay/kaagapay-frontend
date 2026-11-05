@@ -50,7 +50,7 @@ async function renderCaseCard(caseId: string): Promise<Blob> {
   // Same monospace face as on screen, so a letter O and a zero (or I and 1) can be told apart when typed back in.
   text(caseId, 330, '700 76px ui-monospace, Menlo, Consolas, monospace', primary);
   ctx.letterSpacing = '0px';
-  text(`Track your report at ${window.location.origin}/track`, 430, `600 30px ${family}`, body);
+  text(`To check on your report, open the Track page: ${window.location.origin}/track`, 430, `600 28px ${family}`, body);
   text('Keep this private. Anyone with this ID can see the status of your report.', 490, `500 26px ${family}`, muted);
   text(`Saved on ${new Date().toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })}`, 570, `500 24px ${family}`, muted);
 
@@ -187,7 +187,7 @@ export default function CaseIdDialog({ caseId, status, onClose }: CaseIdDialogPr
             <p className="text-sm font-semibold text-on-surface-variant">Your Case ID</p>
             <p className="mt-1 select-all break-all font-mono text-2xl font-extrabold tracking-wide text-primary" data-testid="case-id">{caseId}</p>
             <p className="mt-3 text-sm text-on-surface-variant">
-              Track it at {window.location.host}/track. Keep it private: anyone with this ID can see the status of your report.
+              To check on your report, open the Track page and enter this Case ID. Keep it private: anyone with this ID can see the status of your report.
             </p>
           </div>
 
