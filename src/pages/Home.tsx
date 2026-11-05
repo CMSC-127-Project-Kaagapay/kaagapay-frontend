@@ -12,8 +12,8 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
-import communityPhoto from "../assets/community_support.jpg";
-import upminBackground from "../assets/UP-Mindanao.png";
+import communityPhoto from "../assets/home_community.webp";
+import heroPhoto from "../assets/home_hero.webp";
 
 interface HelpItem {
   icon: React.ElementType;
@@ -34,9 +34,12 @@ export default function Home() {
         {/* Background Layer */}
         <div className="absolute inset-0 z-0 bg-primary">
           <img
-            alt="UP Mindanao Campus"
-            className="w-full h-full object-cover opacity-90"
-            src={upminBackground}
+            alt="Five students sitting together on a campus lawn at sunset, talking"
+            width={1672}
+            height={941}
+            fetchPriority="high"
+            className="w-full h-full object-cover object-right opacity-90"
+            src={heroPhoto}
             referrerPolicy="no-referrer"
           />
           {/* Solid primary on the left fading into the image on the right, keeping it vibrant */}
@@ -263,8 +266,11 @@ export default function Home() {
           <div className="relative">
             <div className="rounded-[4rem] overflow-hidden shadow-2xl ring-8 ring-white/50">
               <img
-                alt="Community Support"
-                className="w-full aspect-square object-cover"
+                alt="Students walking together along a covered campus walkway"
+                width={1672}
+                height={941}
+                loading="lazy"
+                className="w-full aspect-square object-cover object-[68%_50%]"
                 src={communityPhoto}
                 referrerPolicy="no-referrer"
               />
