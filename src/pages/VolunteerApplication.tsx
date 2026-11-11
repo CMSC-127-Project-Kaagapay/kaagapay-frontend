@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Megaphone, FileCheck, ShieldCheck, CheckCircle, Loader2 } from 'lucide-react';
 import { submitVolunteerApplication, ApplicationForm } from '@/src/lib/api'; // Import from api.ts
+import walkwayPhoto from '../assets/home_community.webp';
 
 const initialForm: ApplicationForm = {
   first_name: '',
@@ -83,10 +84,11 @@ export default function VolunteerApplication() {
           className="w-full md:w-1/3 aspect-square rounded-[2rem] overflow-hidden shadow-2xl flex-shrink-0"
         >
           <img
-            className="w-full h-full object-cover"
-            alt="Diverse group of university students"
-            src="https://picsum.photos/seed/volunteer-apply/600/600"
-            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover object-[68%_50%]"
+            alt="Students walking together along a covered campus walkway"
+            width={1672}
+            height={941}
+            src={walkwayPhoto}
           />
         </motion.div>
       </header>
