@@ -12,8 +12,8 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/src/lib/utils";
-import communityPhoto from "../assets/community_support.jpg";
-import upminBackground from "../assets/UP-Mindanao.png";
+import communityPhoto from "../assets/home_community.webp";
+import heroPhoto from "../assets/home_hero.webp";
 
 interface HelpItem {
   icon: React.ElementType;
@@ -34,15 +34,16 @@ export default function Home() {
         {/* Background Layer */}
         <div className="absolute inset-0 z-0 bg-primary">
           <img
-            alt="UP Mindanao Campus"
-            className="w-full h-full object-cover opacity-90"
-            src={upminBackground}
+            alt="Five students sitting together on a campus lawn at sunset, talking"
+            width={1672}
+            height={941}
+            fetchPriority="high"
+            className="w-full h-full object-cover object-right opacity-90"
+            src={heroPhoto}
             referrerPolicy="no-referrer"
           />
-          {/* Solid primary on the left fading into the image on the right, keeping it vibrant */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-transparent"></div>
-          {/* A subtle secondary color overlay for depth without darkening */}
-          <div className="absolute inset-0 bg-gradient-to-r from-secondary/60 via-secondary/20 to-transparent mix-blend-overlay"></div>
+          {/* Solid primary behind the text. On wide screens it fades out early so the people in the photo stay visible; on narrower screens the text covers more of the photo, so the overlay stays strong for contrast. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 via-50% to-primary/70 xl:via-40% xl:to-transparent xl:to-75%"></div>
         </div>
 
         {/* Content Layer (Left-aligned) */}
@@ -123,7 +124,7 @@ export default function Home() {
                 Launched on January 28, 2025 by Gabriela Youth UP Mindanao, Project Kaagapay aims to be a network of young women and young students, to create a peer facilitating and psychosocial support system for victim-survivors of SH/SA in campus.
               </p>
             </div>
-            <div className="flex items-center gap-12 mt-12">
+            <div className="flex flex-wrap items-center gap-x-12 gap-y-6 mt-12">
               <div className="flex flex-col">
                 <span className="text-4xl font-extrabold text-primary">
                   Growing
@@ -263,8 +264,11 @@ export default function Home() {
           <div className="relative">
             <div className="rounded-[4rem] overflow-hidden shadow-2xl ring-8 ring-white/50">
               <img
-                alt="Community Support"
-                className="w-full aspect-square object-cover"
+                alt="Students walking together along a covered campus walkway"
+                width={1672}
+                height={941}
+                loading="lazy"
+                className="w-full aspect-square object-cover object-[68%_50%]"
                 src={communityPhoto}
                 referrerPolicy="no-referrer"
               />

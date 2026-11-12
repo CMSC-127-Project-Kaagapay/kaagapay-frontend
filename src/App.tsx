@@ -11,6 +11,7 @@ import Volunteer from './pages/Volunteer';
 import VolunteerApplication from './pages/VolunteerApplication';
 import Report from './pages/Report';
 import Admin from './pages/Admin';
+import RequireAdmin from './components/RequireAdmin';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
 import VolunteerDashboard from './pages/VolunteerDashboard';
@@ -80,8 +81,11 @@ function AppContent() {
           <Route path="/volunteer" element={<Volunteer />} />
           <Route path="/volunteer/apply" element={<VolunteerApplication />} />
           <Route path="/report" element={<Report />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/tickets/:ticketStatus" element={<Admin />} />
+          {/* Admin pages: signed-out people go to /login, signed-in non-admins go home. The API blocks them too. */}
+          <Route element={<RequireAdmin />}>
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/tickets/:ticketStatus" element={<Admin />} />
+          </Route>
           <Route path="/login" element={<Login />} />
           <Route path="/volunteer/dashboard" element={<VolunteerDashboard />} />
           <Route path="/volunteer/profile" element={<VolunteerProfile />} />

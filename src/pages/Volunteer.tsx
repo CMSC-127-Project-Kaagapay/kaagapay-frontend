@@ -5,6 +5,8 @@ import { Shield, ArrowRight, Users, Award, AlertTriangle, Heart, CheckCircle, Sc
 import { cn } from '@/src/lib/utils';
 import { getAllVolunteers, VolunteerPublicRecord } from '@/src/lib/api';
 
+import volunteerHero from "../assets/volunteer_hero.webp";
+import communityHero from "../assets/home_hero.webp";
 export default function Volunteer() {
   const [volunteers, setVolunteers] = useState<VolunteerPublicRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,10 +70,11 @@ export default function Volunteer() {
             >
               <div className="aspect-[4/5] rounded-[3rem] overflow-hidden shadow-2xl relative ring-8 ring-white/50">
                 <img
-                  alt="Collaborative meeting"
+                  alt="Two volunteers talking at a table in a community room"
+                  width={869}
+                  height={1086}
                   className="w-full h-full object-cover"
-                  src="https://picsum.photos/seed/volunteer-hero/800/1000"
-                  referrerPolicy="no-referrer"
+                  src={volunteerHero}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
               </div>
@@ -159,10 +162,12 @@ export default function Volunteer() {
             <div className="md:col-span-2 bg-surface-container-lowest rounded-[3rem] p-12 flex flex-col md:flex-row items-center gap-12 editorial-shadow border border-outline-variant/10">
               <div className="hidden lg:block w-40 h-40 rounded-full overflow-hidden flex-shrink-0 ring-8 ring-surface-container">
                 <img
-                  alt="Group discussion"
-                  className="w-full h-full object-cover"
-                  src="https://picsum.photos/seed/join-team/400/400"
-                  referrerPolicy="no-referrer"
+                  alt="Students sitting together on a campus lawn, talking"
+                  width={1672}
+                  height={941}
+                  loading="lazy"
+                  className="w-full h-full object-cover object-[40%_50%]"
+                  src={communityHero}
                 />
               </div>
               <div className="flex-1">

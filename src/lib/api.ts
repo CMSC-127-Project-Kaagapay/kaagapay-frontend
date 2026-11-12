@@ -1,6 +1,6 @@
 // src/lib/api.ts
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001";
 
 export interface ApplicationForm {
   first_name: string;
@@ -48,13 +48,13 @@ export interface ReportForm {
 export interface ReportResponseDto {
   public_case_id: string;
   status:
-    | "requested"
-    | "pending"
-    | "claimed"
-    | "in_progress"
-    | "under_review"
-    | "resolved"
-    | "closed";
+  | "requested"
+  | "pending"
+  | "claimed"
+  | "in_progress"
+  | "under_review"
+  | "resolved"
+  | "closed";
   demographic: string;
   involved_party: string;
   locality: string;
@@ -74,13 +74,33 @@ export interface VolunteerPublicRecord {
   profile_image_url: string | null;
 }
 
+/** An API error that may carry per-field messages (the API can return these on 422). */
+export class ApiError extends Error {
+  fields: Record<string, string>;
+  status: number;
+
+  constructor(message: string, status: number, fields: Record<string, string> = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.fields = fields;
+  }
+}
+
 // Function to handle API responses and throw errors for non-OK status
 async function handleApiResponse(response: Response) {
   if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(
-      errorData.detail || `API request failed with status ${response.status}`,
-    );
+    const errorData = await response.json().catch(() => ({}));
+    const detail = errorData.detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      // {field: message} from the API
+      throw new ApiError("Check the highlighted fields.", response.status, detail);
+    }
+    if (Array.isArray(detail)) {
+      // FastAPI's own validation errors
+      throw new ApiError(detail.map((d: any) => d.msg).join(" "), response.status);
+    }
+    throw new ApiError(detail || `API request failed with status ${response.status}`, response.status);
   }
   return response.json();
 }
@@ -208,7 +228,15 @@ export interface IncidentTicketResponseDto {
   expires_at: string;
 }
 
-export type AdminTicketStatus = "pending" | "claimed" | "in_progress" | "resolved" | "closed";
+export interface DeletedTicketResponseDto extends IncidentTicketResponseDto {
+  deleted_at: string;
+  deleted_by?: string;
+  deleted_reason?: string;
+  /** When it is removed for good, unless restored first. */
+  purge_at?: string;
+}
+
+export type AdminTicketStatus = "pending" | "requested" | "claimed" | "in_progress" | "resolved" | "closed";
 
 export interface IncidentTicketCreateDto {
   demographic: string;
@@ -289,14 +317,37 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
   return handleApiResponse(response);
 }
 
+export interface AdminTicketFilters {
+  volunteerId?: string;
+  dateFrom?: string; // YYYY-MM-DD, inclusive
+  dateTo?: string; // YYYY-MM-DD, inclusive
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TicketPage {
+  items: IncidentTicketResponseDto[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 /**
- * Fetches all incident tickets for admins, filtered by status.
+ * Fetches one page of incident tickets for admins, filtered by status and optional filters.
  */
 export async function getAdminTicketsByStatus(
   ticketStatus: AdminTicketStatus,
   token: string,
-): Promise<IncidentTicketResponseDto[]> {
-  const response = await fetch(`${API_BASE_URL}/admin/tickets/${ticketStatus}`, {
+  filters: AdminTicketFilters = {},
+): Promise<TicketPage> {
+  const params = new URLSearchParams();
+  if (filters.volunteerId) params.set("volunteer_id", filters.volunteerId);
+  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+  if (filters.dateTo) params.set("date_to", filters.dateTo);
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("page_size", String(filters.pageSize));
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${ticketStatus}${query ? `?${query}` : ""}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -305,19 +356,48 @@ export async function getAdminTicketsByStatus(
 }
 
 /**
- * Creates a new volunteer.
- * @param volunteer The volunteer data to create.
- * @returns A promise that resolves with the created volunteer record.
+ * Soft-deletes a ticket. It is hidden everywhere and can be restored.
  */
-export async function createVolunteer(
-  volunteer: Partial<VolunteerPublicRecord>,
-): Promise<VolunteerPublicRecord> {
-  const response = await fetch(`${API_BASE_URL}/volunteers`, {
-    method: "POST",
+export async function deleteAdminTicket(
+  publicCaseId: string,
+  token: string,
+  reason?: string,
+): Promise<DeletedTicketResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${encodeURIComponent(publicCaseId)}`, {
+    method: "DELETE",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(volunteer),
+    body: JSON.stringify({ reason: reason?.trim() || null }),
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Fetches soft-deleted tickets, newest deletion first.
+ */
+export async function getDeletedAdminTickets(token: string): Promise<DeletedTicketResponseDto[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/deleted`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleApiResponse(response);
+}
+
+/**
+ * Restores a soft-deleted ticket.
+ */
+export async function restoreAdminTicket(
+  publicCaseId: string,
+  token: string,
+): Promise<IncidentTicketResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/admin/tickets/${encodeURIComponent(publicCaseId)}/restore`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
   return handleApiResponse(response);
 }
@@ -393,5 +473,58 @@ export async function updateVolunteerById(
  */
 export async function getProfileImageUploadUrl(): Promise<{ upload_url: string; key: string }> {
   const response = await fetch(`${API_BASE_URL}/volunteers/profile-image-upload-url`);
+  return handleApiResponse(response);
+}
+
+
+// --- Admin session check ---
+
+export interface AdminMe {
+  id: string;
+  first_name: string;
+  last_name: string;
+  role: string | null;
+}
+
+/** Asks the API whether the signed-in user is an admin. 401 = not signed in, 403 = signed in but not an admin. */
+export async function getAdminMe(token: string): Promise<AdminMe> {
+  const response = await fetch(`${API_BASE_URL}/admin/me`, { headers: { Authorization: `Bearer ${token}` } });
+  return handleApiResponse(response);
+}
+
+export interface MonthlyTrendItem {
+  label: string;
+  year: number;
+  month: number;
+  count: number;
+}
+
+export interface QuarterlyTrendItem {
+  label: string;
+  year: number;
+  quarter: number;
+  count: number;
+}
+
+export interface AdminStats {
+  active_reports: number;
+  pending_reports: number;
+  claimed_reports: number;
+  in_progress_reports: number;
+  total_tickets: number;
+  resolved_tickets: number;
+  resolution_rate: number;
+  pending_applications: number;
+  active_volunteers: number;
+  incident_trends: {
+    monthly: MonthlyTrendItem[];
+    quarterly: QuarterlyTrendItem[];
+  };
+}
+
+export async function getAdminStats(token: string): Promise<AdminStats> {
+  const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return handleApiResponse(response);
 }

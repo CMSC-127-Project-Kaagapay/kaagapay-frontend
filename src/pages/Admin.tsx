@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   TrendingDown, 
+  TrendingUp,
   CheckCircle, 
   AlertCircle, 
   Verified, 
@@ -17,24 +18,49 @@ import {
   Clock,
   Loader2,
   Eye,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import ConfirmDeleteDialog from '@/src/components/ConfirmDeleteDialog';
+import TicketFilters from '@/src/components/TicketFilters';
+import Pagination from '@/src/components/Pagination';
 import { getAuthToken } from '@/src/lib/auth'; // Import getAuthToken from auth.ts
 import { 
   getVolunteerApplications, 
   approveVolunteerApplication, 
   rejectVolunteerApplication,
   getAdminTicketsByStatus,
+  getDeletedAdminTickets,
+  getVolunteers,
+  deleteAdminTicket,
+  restoreAdminTicket,
+  getAdminStats,
+  AdminStats,
   AdminTicketStatus,
   IncidentTicketResponseDto,
+  DeletedTicketResponseDto,
   VolunteerApplicationResponseDto // Import DTO from api.ts
 } from '@/src/lib/api'; // Import API functions from api.ts
 
-const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'claimed', 'in_progress', 'resolved', 'closed'];
+// 'requested' = a report sent to one chosen volunteer, who has 15 minutes to accept before it returns to 'pending'.
+const ADMIN_TICKET_STATUSES: AdminTicketStatus[] = ['pending', 'requested', 'claimed', 'in_progress', 'resolved', 'closed'];
 
-function isAdminTicketStatus(value: string | undefined): value is AdminTicketStatus {
-  return ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
+type AdminTicketView = AdminTicketStatus | 'deleted';
+
+function isAdminTicketView(value: string | undefined): value is AdminTicketView {
+  return value === 'deleted' || ADMIN_TICKET_STATUSES.includes(value as AdminTicketStatus);
+}
+
+const TICKETS_PAGE_SIZE = 10;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatDay(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatStatus(status: string) {
@@ -100,20 +126,67 @@ function getTicketStatusClasses(status: string) {
 export default function Admin() {
   const navigate = useNavigate();
   const { ticketStatus } = useParams<{ ticketStatus?: string }>();
-  const selectedTicketStatus = isAdminTicketStatus(ticketStatus) ? ticketStatus : 'pending';
+  const selectedTicketStatus: AdminTicketView = isAdminTicketView(ticketStatus) ? ticketStatus : 'pending';
+  const isDeletedView = selectedTicketStatus === 'deleted';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const volunteerFilter = searchParams.get('volunteer') ?? '';
+  const rawFrom = searchParams.get('from') ?? '';
+  const rawTo = searchParams.get('to') ?? '';
+  const dateFrom = ISO_DATE.test(rawFrom) ? rawFrom : '';
+  const dateTo = ISO_DATE.test(rawTo) ? rawTo : '';
+  const dateError = dateFrom && dateTo && dateFrom > dateTo ? 'The end date must be on or after the start date.' : null;
+  const pageParam = Number.parseInt(searchParams.get('page') ?? '1', 10);
+  const currentPage = Number.isFinite(pageParam) && pageParam >= 1 ? pageParam : 1;
+  const hasActiveFilters = Boolean(volunteerFilter || dateFrom || dateTo);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [volunteerOptions, setVolunteerOptions] = useState<{ id: string; name: string }[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const loadedStatusRef = useRef<AdminTicketView | null>(null);
   const [volunteerApplications, setVolunteerApplications] = useState<VolunteerApplicationResponseDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [tickets, setTickets] = useState<IncidentTicketResponseDto[]>([]);
+  const [tickets, setTickets] = useState<DeletedTicketResponseDto[] | IncidentTicketResponseDto[]>([]);
+  const [ticketToDelete, setTicketToDelete] = useState<IncidentTicketResponseDto | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [ticketNotice, setTicketNotice] = useState<{ text: string; failed: boolean } | null>(null);
+  const ticketsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<VolunteerApplicationResponseDto | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState<boolean>(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [trendMode, setTrendMode] = useState<'monthly' | 'quarterly'>('monthly');
 
   useEffect(() => {
-    if (ticketStatus && !isAdminTicketStatus(ticketStatus)) {
+    if (ticketStatus && !isAdminTicketView(ticketStatus)) {
       navigate('/admin/tickets/pending', { replace: true });
     }
   }, [navigate, ticketStatus]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStats() {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+        const data = await getAdminStats(token);
+        if (isMounted) setStats(data);
+      } catch (err: any) {
+        if (isMounted) setStatsError(err.message || 'Failed to load stats');
+      } finally {
+        if (isMounted) setStatsLoading(false);
+      }
+    }
+    fetchStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     async function fetchVolunteerApplications() {
@@ -140,30 +213,150 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    getVolunteers()
+      .then((list) =>
+        setVolunteerOptions(
+          list
+            .map((v) => ({ id: v.id, name: `${v.first_name} ${v.last_name}`.trim() || v.external_handle }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        ),
+      )
+      .catch(() => setVolunteerOptions([]));
+  }, []);
+
+  useEffect(() => {
+    if (dateError) return; // The error is shown next to the date fields; don't query with a reversed range.
+    let cancelled = false;
+
     async function fetchTickets() {
+      // Keep current rows visible while refetching the same queue; clear them when the queue itself changes.
+      if (loadedStatusRef.current !== selectedTicketStatus) {
+        setTickets([]);
+        setTotalTickets(0);
+        loadedStatusRef.current = selectedTicketStatus;
+      }
       setTicketsLoading(true);
       setTicketsError(null);
       try {
         const token = getAuthToken();
         if (!token) {
           setTicketsError("Authentication token not found. Please log in as an administrator.");
-          setTicketsLoading(false);
           return;
         }
 
-        const data = await getAdminTicketsByStatus(selectedTicketStatus, token);
-        setTickets([...data].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        ));
+        if (selectedTicketStatus === 'deleted') {
+          const deleted = await getDeletedAdminTickets(token);
+          if (cancelled) return;
+          setTickets(deleted);
+          setTotalTickets(deleted.length);
+        } else {
+          const result = await getAdminTicketsByStatus(selectedTicketStatus, token, {
+            volunteerId: volunteerFilter || undefined,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            page: currentPage,
+            pageSize: TICKETS_PAGE_SIZE,
+          });
+          if (cancelled) return;
+          const lastPage = Math.max(1, Math.ceil(result.total / TICKETS_PAGE_SIZE));
+          if (result.items.length === 0 && result.total > 0 && currentPage > lastPage) {
+            // The last row on this page was removed; step back to the new last page.
+            updateParams({ page: lastPage === 1 ? '' : String(lastPage) });
+            return;
+          }
+          setTickets(result.items);
+          setTotalTickets(result.total);
+        }
       } catch (err: any) {
-        setTicketsError(err.message);
+        if (!cancelled) setTicketsError(err.message);
       } finally {
-        setTicketsLoading(false);
+        if (!cancelled) setTicketsLoading(false);
       }
     }
 
     fetchTickets();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTicketStatus, volunteerFilter, dateFrom, dateTo, currentPage, reloadKey, dateError]);
+
+  // Read the address bar as it is right now. Two filter changes can land before React re-renders
+  // (a date picker or autofill setting both dates), and the render's copy of the params would drop the first.
+  const liveParams = () => new URLSearchParams(window.location.search);
+
+  function updateParams(changes: Record<string, string>, resetPage = false) {
+    const next = liveParams();
+    Object.entries(changes).forEach(([key, value]) => (value ? next.set(key, value) : next.delete(key)));
+    if (resetPage) next.delete('page');
+    setSearchParams(next);
+  }
+
+  const clearFilters = () => {
+    const next = liveParams();
+    ['volunteer', 'from', 'to', 'page'].forEach((key) => next.delete(key));
+    setSearchParams(next);
+  };
+
+  const goToQueue = (view: AdminTicketView) => {
+    const next = liveParams();
+    next.delete('page'); // keep the volunteer and date filters, start the new queue on page 1
+    const query = view === 'deleted' ? '' : next.toString();
+    navigate(`/admin/tickets/${view}${query ? `?${query}` : ''}`);
+  };
+
+  useEffect(() => {
+    setTicketNotice(null);
   }, [selectedTicketStatus]);
+
+  const handleDeleteTicket = async (reason: string) => {
+    if (!ticketToDelete) return;
+    const token = getAuthToken();
+    if (!token) {
+      setDeleteError('Sign in again as an administrator.');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const deleted = await deleteAdminTicket(ticketToDelete.public_case_id, token, reason);
+      setReloadKey((key) => key + 1);
+      setTicketNotice({
+        text: deleted.purge_at
+          ? `Ticket ${ticketToDelete.public_case_id} deleted. You can restore it until ${formatDate(deleted.purge_at)}.`
+          : `Ticket ${ticketToDelete.public_case_id} deleted.`,
+        failed: false,
+      });
+      setTicketToDelete(null);
+      // The row (and its Delete button) is gone, so send focus to the section heading.
+      requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
+    } catch (err: any) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const closeDeleteDialog = () => {
+    setTicketToDelete(null);
+    setDeleteError(null);
+    requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  };
+
+  const handleRestoreTicket = async (ticket: IncidentTicketResponseDto) => {
+    const token = getAuthToken();
+    if (!token) {
+      setTicketNotice({ text: 'Sign in again as an administrator.', failed: true });
+      return;
+    }
+    try {
+      await restoreAdminTicket(ticket.public_case_id, token);
+      setReloadKey((key) => key + 1);
+      setTicketNotice({ text: `Ticket ${ticket.public_case_id} restored.`, failed: false });
+      requestAnimationFrame(() => ticketsHeadingRef.current?.focus());
+    } catch (err: any) {
+      setTicketNotice({ text: `Could not restore ${ticket.public_case_id}: ${err.message}`, failed: true });
+    }
+  };
 
   useEffect(() => {
     if (!selectedApplication) return;
@@ -182,6 +375,12 @@ export default function Admin() {
       document.body.style.overflow = '';
     };
   }, [selectedApplication]);
+
+  const filterParts = [
+    volunteerFilter ? (volunteerOptions.find((v) => v.id === volunteerFilter)?.name ?? 'that volunteer') : '',
+    dateFrom && dateTo ? `${formatDay(dateFrom)} to ${formatDay(dateTo)}` : dateFrom ? `from ${formatDay(dateFrom)}` : dateTo ? `up to ${formatDay(dateTo)}` : '',
+  ].filter(Boolean);
+  const noMatchMessage = `No ${formatStatus(selectedTicketStatus)} tickets for ${filterParts.join(', ')}.`;
 
   const handleAction = async (application_id: string, action: 'approve' | 'reject') => {
     try {
@@ -208,6 +407,7 @@ export default function Admin() {
           ? { ...prevApplication, status: action === 'approve' ? 'approved' : 'rejected' }
           : prevApplication
       );
+      setReloadKey((k) => k + 1);
     } catch (err: any) {
       alert(`Error ${action}ing application: ${err.message}`);
     }
@@ -236,77 +436,193 @@ export default function Admin() {
         </div>
       </header>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {/* Stats Grid - 4 KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Active Reports */}
-        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[240px]">
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
           <div>
             <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
               <AlertCircle className="text-primary" size={28} />
             </div>
             <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Active Reports</h3>
-            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">14</p>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-primary/40" size={36} />
+              ) : (
+                stats?.active_reports ?? 0
+              )}
+            </p>
           </div>
           <div className="mt-4 flex items-center gap-2 text-secondary text-sm font-bold">
-            <TrendingDown size={14} />
-            -12% from last month
+            <span className="w-2 h-2 rounded-full bg-secondary inline-block animate-pulse"></span>
+            <span>{stats?.pending_reports ?? 0} pending claim</span>
           </div>
         </div>
 
         {/* Resolution Rate */}
-        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[240px]">
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
           <div>
             <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6">
               <Verified className="text-secondary" size={28} />
             </div>
             <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Resolution Rate</h3>
-            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">92%</p>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-secondary/40" size={36} />
+              ) : (
+                `${stats?.resolution_rate ?? 0}%`
+              )}
+            </p>
           </div>
           <div className="mt-4 flex items-center gap-2 text-primary text-sm font-bold">
             <CheckCircle size={14} />
-            Average 4.2 days
+            <span>
+              {stats ? `${stats.resolved_tickets} of ${stats.total_tickets} cases resolved` : '0 of 0 resolved'}
+            </span>
           </div>
         </div>
 
-        {/* Incident Trends Chart */}
-        <div className="md:col-span-1 lg:col-span-2 p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Incident Trends</h3>
-              <p className="text-on-surface text-sm font-medium">6-month anonymized distribution</p>
+        {/* Pending Applications */}
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="w-12 h-12 bg-[#7C5800]/10 rounded-2xl flex items-center justify-center mb-6">
+              <FileText className="text-[#7C5800]" size={28} />
             </div>
-            <select className="bg-surface-container-low border-none rounded-lg text-xs font-bold focus:ring-secondary px-3 py-1.5">
-              <option>Monthly</option>
-              <option>Quarterly</option>
-            </select>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Pending Applications</h3>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-[#7C5800]/40" size={36} />
+              ) : (
+                stats?.pending_applications ?? 0
+              )}
+            </p>
           </div>
-          <div className="h-32 flex items-end gap-3 w-full px-4">
-            {[40, 65, 85, 55, 45, 30].map((h, i) => (
-              <motion.div 
-                key={i}
-                initial={{ height: 0 }}
-                animate={{ height: `${h}%` }}
-                className="bg-primary/20 w-full rounded-t-xl transition-all hover:bg-primary cursor-pointer relative group"
-              >
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                  {h}
-                </div>
-              </motion.div>
-            ))}
+          <a
+            href="#volunteer-applications"
+            className="mt-4 flex items-center gap-2 text-[#7C5800] text-sm font-bold hover:underline"
+          >
+            <Clock size={14} />
+            <span>Awaiting admin review</span>
+          </a>
+        </div>
+
+        {/* Active Volunteers */}
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
+              <Users className="text-primary" size={28} />
+            </div>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Active Volunteers</h3>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-primary/40" size={36} />
+              ) : (
+                stats?.active_volunteers ?? 0
+              )}
+            </p>
           </div>
-          <div className="flex justify-between mt-4 text-[10px] text-on-surface-variant font-bold px-2 uppercase tracking-widest">
-            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map(m => <span key={m}>{m}</span>)}
+          <div className="mt-4 flex items-center gap-2 text-secondary text-sm font-bold">
+            <ShieldCheck size={14} />
+            <span>Ready to claim cases</span>
           </div>
         </div>
+      </div>
+
+      {/* Incident Trends Section */}
+      <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4 mb-8">
+          <div>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Incident Trends</h3>
+            <p className="text-on-surface text-sm font-medium mt-1">
+              {trendMode === 'monthly'
+                ? '6-month distribution of reported incidents'
+                : '4-quarter distribution of reported incidents'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={trendMode}
+              onChange={(e) => setTrendMode(e.target.value as 'monthly' | 'quarterly')}
+              className="bg-surface-container-low border border-outline-variant/15 rounded-lg text-xs font-bold text-on-surface focus:ring-secondary px-3 py-1.5 cursor-pointer"
+            >
+              <option value="monthly">Monthly (Last 6 Months)</option>
+              <option value="quarterly">Quarterly (Last 4 Quarters)</option>
+            </select>
+          </div>
+        </div>
+
+        {statsError ? (
+          <div className="py-12 text-center text-sm text-secondary font-medium">
+            Failed to load incident trends.
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="ml-3 underline font-bold hover:opacity-80"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          (() => {
+            const currentTrendData =
+              trendMode === 'monthly'
+                ? (stats?.incident_trends?.monthly ?? [])
+                : (stats?.incident_trends?.quarterly ?? []);
+            const maxCount = Math.max(1, ...currentTrendData.map((d) => d.count));
+
+            return (
+              <div>
+                <div className="h-40 flex items-end gap-3 sm:gap-6 w-full px-4">
+                  {currentTrendData.map((d, i) => {
+                    const percent = d.count === 0 ? 0 : Math.max(10, Math.round((d.count / maxCount) * 100));
+                    return (
+                      <div key={`${trendMode}-${d.label}-${i}`} className="flex-1 flex flex-col items-center h-full justify-end">
+                        <div className="w-full flex items-end justify-center h-full">
+                          <motion.div
+                            initial={{ height: 0 }}
+                            animate={{ height: d.count === 0 ? '6px' : `${percent}%` }}
+                            transition={{ duration: 0.4, ease: 'easeOut' }}
+                            className={cn(
+                              'w-full max-w-[80px] rounded-t-xl transition-all cursor-pointer relative group',
+                              d.count > 0 ? 'bg-primary/25 hover:bg-primary' : 'bg-outline-variant/20 hover:bg-outline-variant/40'
+                            )}
+                          >
+                            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[11px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap z-10">
+                              {d.count} {d.count === 1 ? 'case' : 'cases'}
+                            </div>
+                          </motion.div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-4 text-[11px] text-on-surface-variant font-bold px-4 uppercase tracking-widest">
+                  {currentTrendData.map((d, i) => (
+                    <span key={`${d.label}-${i}`} className="flex-1 text-center truncate">
+                      {d.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()
+        )}
       </div>
 
       <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
         <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             <div>
-              <h2 className="text-2xl font-bold font-headline text-on-surface">Incident Tickets</h2>
+              <h2 ref={ticketsHeadingRef} tabIndex={-1} className="text-2xl font-bold font-headline text-on-surface">Incident Tickets</h2>
               <p className="text-on-surface-variant text-sm font-medium mt-1">
-                Viewing {formatStatus(selectedTicketStatus)} reports from the admin ticket queue.
+                {isDeletedView
+                  ? 'Viewing deleted tickets. Restore one to put it back in its queue.'
+                  : `Viewing ${formatStatus(selectedTicketStatus)} reports from the admin ticket queue.`}
+              </p>
+              <p
+                role={ticketNotice?.failed ? 'alert' : 'status'}
+                className={cn('mt-2 text-sm font-semibold text-on-surface', !ticketNotice && 'sr-only')}
+              >
+                {ticketNotice?.text}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -316,7 +632,7 @@ export default function Admin() {
                 return (
                   <button
                     key={status}
-                    onClick={() => navigate(`/admin/tickets/${status}`)}
+                    onClick={() => goToQueue(status)}
                     className={cn(
                       "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2",
                       isSelected
@@ -329,10 +645,52 @@ export default function Admin() {
                   </button>
                 );
               })}
+              <button
+                onClick={() => goToQueue('deleted')}
+                aria-current={isDeletedView ? 'page' : undefined}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                  isDeletedView
+                    ? "bg-surface-container-high text-on-surface"
+                    : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
+                )}
+              >
+                Deleted
+              </button>
             </div>
           </div>
 
-          {ticketsLoading && (
+          {!isDeletedView && (
+            <TicketFilters
+              values={{ volunteer: volunteerFilter, from: dateFrom, to: dateTo }}
+              volunteers={volunteerOptions}
+              dateError={dateError}
+              hasActiveFilters={hasActiveFilters}
+              onChange={(next) =>
+                updateParams(
+                  {
+                    ...(next.volunteer !== undefined && { volunteer: next.volunteer }),
+                    ...(next.from !== undefined && { from: next.from }),
+                    ...(next.to !== undefined && { to: next.to }),
+                  },
+                  true,
+                )
+              }
+              onClear={clearFilters}
+            />
+          )}
+
+          <p aria-live="polite" className="mb-3 text-sm font-medium text-on-surface-variant tabular-nums">
+            {!ticketsLoading && !ticketsError && !dateError && (
+              totalTickets === 0
+                ? ''
+                : isDeletedView
+                  ? `${totalTickets} deleted ${totalTickets === 1 ? 'ticket' : 'tickets'}`
+                  : `Showing ${(currentPage - 1) * TICKETS_PAGE_SIZE + 1}–${(currentPage - 1) * TICKETS_PAGE_SIZE + tickets.length} of ${totalTickets} ${formatStatus(selectedTicketStatus)} tickets`
+            )}
+          </p>
+
+          {ticketsLoading && tickets.length === 0 && (
             <div className="py-16 flex items-center justify-center gap-3 text-on-surface-variant font-bold">
               <Loader2 className="animate-spin text-primary" size={20} />
               Loading {formatStatus(selectedTicketStatus)} tickets...
@@ -340,22 +698,44 @@ export default function Admin() {
           )}
 
           {!ticketsLoading && ticketsError && (
-            <p className="py-12 text-error text-center font-medium">{ticketsError}</p>
+            <div className="py-12 text-center space-y-3">
+              <p className="text-on-surface font-medium">Could not load tickets: {ticketsError}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((key) => key + 1)}
+                className="min-h-11 px-4 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Try again
+              </button>
+            </div>
           )}
 
-          {!ticketsLoading && !ticketsError && tickets.length === 0 && (
+          {!ticketsLoading && !ticketsError && !dateError && tickets.length === 0 && (
             <div className="py-16 text-center space-y-4">
               <div className="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center mx-auto opacity-50">
                 <Inbox size={32} />
               </div>
               <p className="text-on-surface-variant font-medium">
-                No {formatStatus(selectedTicketStatus)} incident tickets found.
+                {isDeletedView
+                  ? 'No deleted tickets.'
+                  : hasActiveFilters
+                    ? noMatchMessage
+                    : `No ${formatStatus(selectedTicketStatus)} incident tickets found.`}
               </p>
+              {hasActiveFilters && !isDeletedView && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="min-h-11 px-4 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           )}
 
-          {!ticketsLoading && !ticketsError && tickets.length > 0 && (
-            <div className="overflow-x-auto">
+          {!ticketsError && tickets.length > 0 && (
+            <div className="overflow-x-auto" aria-busy={ticketsLoading}>
               <table className="w-full text-left border-separate border-spacing-y-4">
                 <thead>
                   <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
@@ -365,11 +745,12 @@ export default function Admin() {
                     <th className="px-6 pb-2">Routing</th>
                     <th className="px-6 pb-2">Volunteer</th>
                     <th className="px-6 pb-2">Status</th>
-                    <th className="px-6 pb-2 text-right">Created</th>
+                    <th className="px-6 pb-2 text-right">{isDeletedView ? 'Deleted' : 'Created'}</th>
+                    <th className="px-6 pb-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tickets.map((ticket) => {
+                  {(tickets as DeletedTicketResponseDto[]).map((ticket) => {
                     const statusClasses = getTicketStatusClasses(ticket.status);
                     return (
                       <tr key={ticket.id} className="bg-surface-container-low transition-all hover:bg-white group">
@@ -386,16 +767,49 @@ export default function Admin() {
                             {formatStatus(ticket.status)}
                           </span>
                         </td>
-                        <td className="px-6 py-6 rounded-r-3xl text-right text-on-surface font-semibold whitespace-nowrap">
+                        <td className="px-6 py-6 text-right text-on-surface font-semibold whitespace-nowrap">
                           <div className="inline-flex items-center justify-end gap-2">
                             <Clock size={14} className="text-outline" />
-                            {new Date(ticket.created_at).toLocaleString([], {
+                            {new Date(isDeletedView && ticket.deleted_at ? ticket.deleted_at : ticket.created_at).toLocaleString([], {
                               month: 'short',
                               day: '2-digit',
                               hour: '2-digit',
                               minute: '2-digit'
                             })}
                           </div>
+                          {isDeletedView && ticket.purge_at && (
+                            <p className="text-xs font-medium text-on-surface-variant">Restore until {formatDate(ticket.purge_at)}</p>
+                          )}
+                          {isDeletedView && ticket.deleted_reason && (
+                            <p className="text-xs font-medium text-on-surface-variant max-w-48 truncate" title={ticket.deleted_reason}>
+                              {ticket.deleted_reason}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-6 py-6 rounded-r-3xl text-right whitespace-nowrap">
+                          {isDeletedView ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreTicket(ticket)}
+                              aria-label={`Restore ticket ${ticket.public_case_id}`}
+                              className="min-h-11 px-3 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                deleteTriggerRef.current = event.currentTarget;
+                                setDeleteError(null);
+                                setTicketToDelete(ticket);
+                              }}
+                              aria-label={`Delete ticket ${ticket.public_case_id}`}
+                              className="min-h-11 px-3 text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -404,8 +818,27 @@ export default function Admin() {
               </table>
             </div>
           )}
+
+          {!isDeletedView && !ticketsError && (
+            <Pagination
+              page={currentPage}
+              totalPages={Math.max(1, Math.ceil(totalTickets / TICKETS_PAGE_SIZE))}
+              onPageChange={(page) => updateParams({ page: page === 1 ? '' : String(page) })}
+              label="Ticket pages"
+            />
+          )}
         </div>
       </section>
+
+      {ticketToDelete && (
+        <ConfirmDeleteDialog
+          caseId={ticketToDelete.public_case_id}
+          submitting={deleting}
+          error={deleteError}
+          onConfirm={handleDeleteTicket}
+          onCancel={closeDeleteDialog}
+        />
+      )}
 
       {loading && <p className="text-on-surface-variant text-center">Loading volunteer applications...</p>}
       {error && <p className="text-error text-center">{error}</p>}
@@ -415,7 +848,7 @@ export default function Admin() {
       )}
 
       {!loading && !error && volunteerApplications.length > 0 && (
-        <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+        <section id="volunteer-applications" className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
           <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
               <h2 className="text-2xl font-bold font-headline text-on-surface">Volunteer Applications ({volunteerApplications.filter(app => app.status === 'pending').length} pending)</h2>

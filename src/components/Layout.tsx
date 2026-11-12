@@ -4,47 +4,37 @@ import { Phone, UserCircle, Menu, X, LogOut, Mail, Globe } from 'lucide-react';
 import { cn } from "@/src/lib/utils";
 import logo from "../assets/pk_logo.png";
 import { supabase } from "../lib/supabase";
-import { getVolunteerProfile } from "../lib/api";
+import { getAdminMe, getVolunteerProfile } from "../lib/api";
 
 type UserRole = 'admin' | 'volunteer' | null;
 
-async function resolveUserRole(user: any): Promise<UserRole> {
+/**
+ * Who is this person? Only the backend knows who is an admin (the `admins` table), so the Admin
+ * Dashboard link is shown only when GET /admin/me says so. Account metadata can be edited by the
+ * user, so it is never trusted for admin access. A failed check shows no admin link.
+ */
+async function resolveUserRole(user: any, token: string | undefined): Promise<UserRole> {
   if (!user) return null;
 
   const appMetadata = user?.app_metadata ?? {};
   const userMetadata = user?.user_metadata ?? {};
-  const role = String(
-    appMetadata.role ??
-    userMetadata.role ??
-    appMetadata.user_role ??
-    userMetadata.user_role ??
-    appMetadata.account_type ??
-    userMetadata.account_type ??
-    ''
-  ).toLowerCase();
-  const roles = [
-    ...(Array.isArray(appMetadata.roles) ? appMetadata.roles : []),
-    ...(Array.isArray(userMetadata.roles) ? userMetadata.roles : []),
-  ].map((item) => String(item).toLowerCase());
+  const role = String(appMetadata.role ?? userMetadata.role ?? '').toLowerCase();
+  if (role === 'volunteer') return 'volunteer';
 
-  if (role === 'volunteer' || roles.includes('volunteer')) return 'volunteer';
-
-  if (
-    role === 'admin' ||
-    roles.includes('admin') ||
-    appMetadata.is_admin === true ||
-    userMetadata.is_admin === true ||
-    appMetadata.isAdmin === true ||
-    userMetadata.isAdmin === true
-  ) {
-    return 'admin';
+  if (token) {
+    try {
+      await getAdminMe(token);
+      return 'admin';
+    } catch {
+      // not an admin (403) or the check failed: fall through, no admin link
+    }
   }
 
   try {
     await getVolunteerProfile(user.id);
     return 'volunteer';
   } catch {
-    return 'admin';
+    return null;
   }
 }
 
@@ -59,13 +49,13 @@ export function Navbar() {
   useEffect(() => {
     let isMounted = true;
 
-    async function applySessionUser(sessionUser: any) {
+    async function applySessionUser(sessionUser: any, token?: string) {
       if (!isMounted) return;
       setUser(sessionUser ?? null);
       setUserRole(null);
 
       if (sessionUser) {
-        const role = await resolveUserRole(sessionUser);
+        const role = await resolveUserRole(sessionUser, token);
         if (isMounted) setUserRole(role);
       }
     }
@@ -73,11 +63,11 @@ export function Navbar() {
     if (!supabase) return;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      applySessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null, session?.access_token);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null, session?.access_token);
     });
 
     return () => {
@@ -93,6 +83,9 @@ export function Navbar() {
     navigate('/login');
   };
 
+  // Staff (admins and volunteers) have their own dashboard, so the public "Volunteer" (apply) and
+  // "Report" links are hidden for them. The pages stay public; only the links change.
+  const isStaff = userRole === 'admin' || userRole === 'volunteer';
   const navLinks = [
     { name: "Home", path: "/" },
     { name: "Updates", path: "/updates" },
@@ -127,26 +120,37 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md">
+          <a
+            href="https://findahelpline.com/countries/ph"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Crisis Hotline (opens Find a Helpline in a new tab)"
+            className="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md"
+          >
             Crisis Hotline
-          </button>
+          </a>
           {user ? (
             <div className="flex items-center gap-2">
               {userRole !== 'admin' && (
-                <Link to="/volunteer/profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
+                <Link to="/volunteer/profile" aria-label="My profile" title="My profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
                   <UserCircle size={24} />
                 </Link>
               )}
-              <button onClick={handleLogout} className="hidden md:flex text-error hover:bg-error/10 p-2 rounded-lg transition-all">
+              <button onClick={handleLogout} aria-label="Log out" title="Log out" className="hidden md:flex text-error hover:bg-error/10 p-2 rounded-lg transition-all">
                 <LogOut size={24} />
               </button>
             </div>
           ) : (
-            <Link to="/login" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
-              <UserCircle size={24} />
+            <Link to="/login" className="hidden md:flex items-center text-sm font-semibold font-headline text-on-surface-variant hover:text-primary hover:bg-surface-container-low px-3 py-2 rounded-lg transition-all">
+              Log in
             </Link>
           )}
-          <button className="md:hidden p-2 rounded-lg text-on-surface-variant" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button
+            className="md:hidden p-2 rounded-lg text-on-surface-variant"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isMenuOpen}
+          >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -160,6 +164,19 @@ export function Navbar() {
               {link.name}
             </Link>
           ))}
+          {user ? (
+            <button
+              type="button"
+              onClick={() => { setIsMenuOpen(false); handleLogout(); }}
+              className="text-left text-sm font-semibold py-3 px-2 rounded-lg text-error hover:bg-error/10"
+            >
+              Log out
+            </button>
+          ) : (
+            <Link to="/login" onClick={() => setIsMenuOpen(false)} className="text-sm font-semibold py-3 px-2 rounded-lg text-primary hover:bg-surface-container-low">
+              Log in
+            </Link>
+          )}
         </div>
       )}
     </nav>
@@ -180,11 +197,11 @@ export function Footer() {
           <ul className="space-y-2 text-sm font-medium flex flex-col gap-1">
             <li className="flex items-center gap-2"><Phone size={14} className="text-primary shrink-0" /> Crisis Hotline: (082) 293-0000</li>
             <li className="flex items-center gap-2">
-              <Mail size={14} className="text-primary shrink-0" /> 
+              <Mail size={14} className="text-primary shrink-0" />
               <a href="mailto:proj.kaagapay@gmail.com" className="hover:underline break-all">proj.kaagapay@gmail.com</a>
             </li>
             <li className="flex items-center gap-2">
-              <Globe size={14} className="text-primary shrink-0" /> 
+              <Globe size={14} className="text-primary shrink-0" />
               <a href="https://facebook.com/proj.kaagapay" target="_blank" rel="noopener noreferrer" className="hover:underline break-all">facebook.com/proj.kaagapay</a>
             </li>
           </ul>

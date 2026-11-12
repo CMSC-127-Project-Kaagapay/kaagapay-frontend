@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getVolunteerProfile } from '../lib/api';
 
+import loginVisual from "../assets/login_visual.webp";
 async function getPostLoginRoute(user: any) {
   const appMetadata = user?.app_metadata ?? {};
   const userMetadata = user?.user_metadata ?? {};
@@ -56,7 +57,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isResetting, setIsResetting] = useState(false);
+  // /login?reset=1 opens straight on the forgot-password form (used by the expired-link page).
+  const [isResetting, setIsResetting] = useState(() => new URLSearchParams(window.location.search).get('reset') === '1');
   const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -113,10 +115,11 @@ export default function Login() {
         <div className="hidden lg:block relative overflow-hidden">
           <div className="absolute inset-0 aura-gradient opacity-90 mix-blend-multiply"></div>
           <img 
-            alt="UP Mindanao Campus" 
-            className="w-full h-full object-cover" 
-            src="https://picsum.photos/seed/login-bg/800/1000"
-            referrerPolicy="no-referrer"
+            alt="Hands holding a phone at a library table by a window"
+            width={819}
+            height={1024}
+            className="w-full h-full object-cover"
+            src={loginVisual}
           />
           <div className="absolute inset-0 flex flex-col justify-end p-16 text-white">
             <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 border border-white/30">
