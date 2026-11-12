@@ -159,6 +159,15 @@ export default function SetPassword() {
                 Request a new link
               </button>
             )}
+            {linkError && (
+              <button
+                type="button"
+                onClick={() => navigate('/login', { replace: true })}
+                className="w-full py-3 rounded-2xl text-primary font-headline font-bold hover:bg-primary/10 transition-all text-sm"
+              >
+                Back to login
+              </button>
+            )}
           </div>
         ) : success ? (
            <div className="p-6 bg-primary/10 rounded-2xl flex flex-col items-center justify-center text-center gap-4">
