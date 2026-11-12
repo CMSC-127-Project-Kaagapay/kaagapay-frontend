@@ -79,10 +79,15 @@ export function Navbar() {
     navigate('/login');
   };
 
+  // Staff (admins and volunteers) have their own dashboard, so the public "Volunteer" (apply) and
+  // "Report" links are hidden for them. The pages stay public; only the links change.
+  const isStaff = userRole === 'admin' || userRole === 'volunteer';
   const navLinks = [
     { name: "Home", path: "/" },
-    { name: "Volunteer", path: "/volunteer" },
-    { name: "Report", path: "/report" },
+    ...(isStaff ? [] : [
+      { name: "Volunteer", path: "/volunteer" },
+      { name: "Report", path: "/report" },
+    ]),
     { name: "Track", path: "/track" },
     ...(userRole === 'admin' ? [{ name: "Admin Dashboard", path: "/admin" }] : []),
     ...(userRole === 'volunteer' ? [{ name: "Dashboard", path: "/volunteer/dashboard" }] : []),
