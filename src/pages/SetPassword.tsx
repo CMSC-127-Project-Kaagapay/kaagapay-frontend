@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 type LinkType = 'recovery' | 'invite';
-const LINK_PROBLEM = 'This link has expired or was already used. Request a new one from the login page.';
+const LINK_PROBLEM = 'This link has expired or was already used. Request a new one and use it within a few minutes.';
+const CONNECTION_PROBLEM = 'Could not check your link. Check your connection and press Continue again.';
 
 export default function SetPassword() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ export default function SetPassword() {
   const [pendingLink, setPendingLink] = useState<{ tokenHash: string; type: LinkType } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -53,10 +55,13 @@ export default function SetPassword() {
     if (!pendingLink) return;
     setVerifying(true);
     setLinkError(null);
+    setConnectionError(null);
     const { error } = await supabase.auth.verifyOtp({ token_hash: pendingLink.tokenHash, type: pendingLink.type });
     setVerifying(false);
     if (error) {
-      setLinkError(LINK_PROBLEM);
+      // A network problem says nothing about the link: let the person try again with the same link.
+      if (error.name === 'AuthRetryableFetchError') setConnectionError(CONNECTION_PROBLEM);
+      else setLinkError(LINK_PROBLEM);
       return;
     }
     // Signed in now: drop the token from the address bar and show the password form.
@@ -109,9 +114,13 @@ export default function SetPassword() {
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 text-primary">
             <Shield size={32} />
           </div>
-          <h1 className="text-2xl font-extrabold font-headline text-primary mb-2 tracking-tight text-center">Set Your Password</h1>
+          <h1 className="text-2xl font-extrabold font-headline text-primary mb-2 tracking-tight text-center">
+            {linkError ? "This link can't be used" : 'Set Your Password'}
+          </h1>
           <p className="text-on-surface-variant font-medium text-center text-sm">
-            Welcome! Please set a password for your account to continue.
+            {linkError
+              ? 'Request a new link to set your password.'
+              : 'Welcome! Please set a password for your account to continue.'}
           </p>
         </div>
 
@@ -121,6 +130,12 @@ export default function SetPassword() {
               <div role="alert" className="p-4 bg-error-container text-on-error-container rounded-xl flex items-start gap-3 text-sm font-medium">
                 <AlertCircle className="shrink-0 mt-0.5" size={18} />
                 <p>{linkError}</p>
+              </div>
+            )}
+            {connectionError && (
+              <div role="alert" className="p-4 bg-error-container text-on-error-container rounded-xl flex items-start gap-3 text-sm font-medium">
+                <AlertCircle className="shrink-0 mt-0.5" size={18} />
+                <p>{connectionError}</p>
               </div>
             )}
             {pendingLink && !linkError && (
@@ -138,10 +153,10 @@ export default function SetPassword() {
             ) : (
               <button
                 type="button"
-                onClick={() => navigate('/login', { replace: true })}
+                onClick={() => navigate('/login?reset=1', { replace: true })}
                 className="w-full bg-primary text-on-primary font-headline font-extrabold py-4 rounded-2xl shadow-xl hover:opacity-90 transition-all text-lg"
               >
-                Go to login
+                Request a new link
               </button>
             )}
           </div>
