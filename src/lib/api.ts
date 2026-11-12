@@ -1,6 +1,6 @@
 // src/lib/api.ts
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001";
 
 export interface ApplicationForm {
   first_name: string;
@@ -48,13 +48,13 @@ export interface ReportForm {
 export interface ReportResponseDto {
   public_case_id: string;
   status:
-    | "requested"
-    | "pending"
-    | "claimed"
-    | "in_progress"
-    | "under_review"
-    | "resolved"
-    | "closed";
+  | "requested"
+  | "pending"
+  | "claimed"
+  | "in_progress"
+  | "under_review"
+  | "resolved"
+  | "closed";
   demographic: string;
   involved_party: string;
   locality: string;
@@ -489,5 +489,42 @@ export interface AdminMe {
 /** Asks the API whether the signed-in user is an admin. 401 = not signed in, 403 = signed in but not an admin. */
 export async function getAdminMe(token: string): Promise<AdminMe> {
   const response = await fetch(`${API_BASE_URL}/admin/me`, { headers: { Authorization: `Bearer ${token}` } });
+  return handleApiResponse(response);
+}
+
+export interface MonthlyTrendItem {
+  label: string;
+  year: number;
+  month: number;
+  count: number;
+}
+
+export interface QuarterlyTrendItem {
+  label: string;
+  year: number;
+  quarter: number;
+  count: number;
+}
+
+export interface AdminStats {
+  active_reports: number;
+  pending_reports: number;
+  claimed_reports: number;
+  in_progress_reports: number;
+  total_tickets: number;
+  resolved_tickets: number;
+  resolution_rate: number;
+  pending_applications: number;
+  active_volunteers: number;
+  incident_trends: {
+    monthly: MonthlyTrendItem[];
+    quarterly: QuarterlyTrendItem[];
+  };
+}
+
+export async function getAdminStats(token: string): Promise<AdminStats> {
+  const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return handleApiResponse(response);
 }
