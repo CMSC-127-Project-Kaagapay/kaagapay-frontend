@@ -57,7 +57,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isResetting, setIsResetting] = useState(false);
+  // /login?reset=1 opens straight on the forgot-password form (used by the expired-link page).
+  const [isResetting, setIsResetting] = useState(() => new URLSearchParams(window.location.search).get('reset') === '1');
   const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
