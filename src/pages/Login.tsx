@@ -61,6 +61,10 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setError('Authentication is unavailable until Supabase env vars are configured.');
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -80,6 +84,10 @@ export default function Login() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setError('Password reset is unavailable until Supabase env vars are configured.');
+      return;
+    }
     setLoading(true);
     setError(null);
 

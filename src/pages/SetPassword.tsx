@@ -13,6 +13,10 @@ export default function SetPassword() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
+    if (!supabase) {
+      navigate('/login', { replace: true });
+      return;
+    }
     // Supabase automatically parses the hash in the URL and sets the session
     // if the user arrived via an invite link.
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -34,6 +38,11 @@ export default function SetPassword() {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!supabase) {
+      setError("Authentication is unavailable until Supabase env vars are configured.");
       return;
     }
 

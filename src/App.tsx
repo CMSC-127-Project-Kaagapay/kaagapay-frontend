@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar, Footer } from './components/Layout';
 import Home from './pages/Home';
@@ -16,14 +16,21 @@ import SetPassword from './pages/SetPassword';
 import VolunteerDashboard from './pages/VolunteerDashboard';
 import VolunteerProfile from './pages/VolunteerProfile';
 import TrackCase from './pages/TrackCase';
+import Updates from './pages/Updates';
 import { supabase } from './lib/supabase';
+
+const StudioPage = lazy(() => import('./pages/StudioPage'));
 
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthPage = location.pathname === '/login' || location.pathname === '/set-password';
+  const isStudioPage = location.pathname === '/studio' || location.pathname.startsWith('/studio/');
+  const hideChrome = isAuthPage || isStudioPage;
 
   useEffect(() => {
+    if (!supabase) return;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // PASSWORD_RECOVERY is triggered for both password resets and invite links
       if (event === 'PASSWORD_RECOVERY') {
@@ -51,10 +58,25 @@ function AppContent() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {!isAuthPage && <Navbar />}
+      {!hideChrome && <Navbar />}
       <main className="flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/updates" element={<Updates />} />
+          <Route
+            path="/studio/*"
+            element={
+              <Suspense
+                fallback={
+                  <div className="h-screen w-screen flex items-center justify-center bg-surface text-primary font-headline font-bold">
+                    Loading Sanity Studio...
+                  </div>
+                }
+              >
+                <StudioPage />
+              </Suspense>
+            }
+          />
           <Route path="/volunteer" element={<Volunteer />} />
           <Route path="/volunteer/apply" element={<VolunteerApplication />} />
           <Route path="/report" element={<Report />} />
@@ -67,7 +89,7 @@ function AppContent() {
           <Route path="/set-password" element={<SetPassword />} />
         </Routes>
       </main>
-      {!isAuthPage && <Footer />}
+      {!hideChrome && <Footer />}
     </div>
   );
 }

@@ -70,6 +70,8 @@ export function Navbar() {
       }
     }
 
+    if (!supabase) return;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       applySessionUser(session?.user ?? null);
     });
@@ -85,12 +87,15 @@ export function Navbar() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     navigate('/login');
   };
 
   const navLinks = [
     { name: "Home", path: "/" },
+    { name: "Updates", path: "/updates" },
     { name: "Volunteer", path: "/volunteer" },
     { name: "Report", path: "/report" },
     { name: "Track", path: "/track" },
