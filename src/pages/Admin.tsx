@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   TrendingDown, 
+  TrendingUp,
   CheckCircle, 
   AlertCircle, 
   Verified, 
@@ -17,7 +18,8 @@ import {
   Clock,
   Loader2,
   Eye,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import ConfirmDeleteDialog from '@/src/components/ConfirmDeleteDialog';
@@ -33,6 +35,8 @@ import {
   getVolunteers,
   deleteAdminTicket,
   restoreAdminTicket,
+  getAdminStats,
+  AdminStats,
   AdminTicketStatus,
   IncidentTicketResponseDto,
   DeletedTicketResponseDto,
@@ -151,12 +155,38 @@ export default function Admin() {
   const [ticketsLoading, setTicketsLoading] = useState<boolean>(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<VolunteerApplicationResponseDto | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState<boolean>(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [trendMode, setTrendMode] = useState<'monthly' | 'quarterly'>('monthly');
 
   useEffect(() => {
     if (ticketStatus && !isAdminTicketView(ticketStatus)) {
       navigate('/admin/tickets/pending', { replace: true });
     }
   }, [navigate, ticketStatus]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStats() {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+        const data = await getAdminStats(token);
+        if (isMounted) setStats(data);
+      } catch (err: any) {
+        if (isMounted) setStatsError(err.message || 'Failed to load stats');
+      } finally {
+        if (isMounted) setStatsLoading(false);
+      }
+    }
+    fetchStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     async function fetchVolunteerApplications() {
@@ -377,6 +407,7 @@ export default function Admin() {
           ? { ...prevApplication, status: action === 'approve' ? 'approved' : 'rejected' }
           : prevApplication
       );
+      setReloadKey((k) => k + 1);
     } catch (err: any) {
       alert(`Error ${action}ing application: ${err.message}`);
     }
@@ -405,68 +436,176 @@ export default function Admin() {
         </div>
       </header>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {/* Stats Grid - 4 KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Active Reports */}
-        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[240px]">
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
           <div>
             <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
               <AlertCircle className="text-primary" size={28} />
             </div>
             <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Active Reports</h3>
-            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">14</p>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-primary/40" size={36} />
+              ) : (
+                stats?.active_reports ?? 0
+              )}
+            </p>
           </div>
           <div className="mt-4 flex items-center gap-2 text-secondary text-sm font-bold">
-            <TrendingDown size={14} />
-            -12% from last month
+            <span className="w-2 h-2 rounded-full bg-secondary inline-block animate-pulse"></span>
+            <span>{stats?.pending_reports ?? 0} pending claim</span>
           </div>
         </div>
 
         {/* Resolution Rate */}
-        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[240px]">
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
           <div>
             <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6">
               <Verified className="text-secondary" size={28} />
             </div>
             <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Resolution Rate</h3>
-            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">92%</p>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-secondary/40" size={36} />
+              ) : (
+                `${stats?.resolution_rate ?? 0}%`
+              )}
+            </p>
           </div>
           <div className="mt-4 flex items-center gap-2 text-primary text-sm font-bold">
             <CheckCircle size={14} />
-            Average 4.2 days
+            <span>
+              {stats ? `${stats.resolved_tickets} of ${stats.total_tickets} cases resolved` : '0 of 0 resolved'}
+            </span>
           </div>
         </div>
 
-        {/* Incident Trends Chart */}
-        <div className="md:col-span-1 lg:col-span-2 p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10">
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Incident Trends</h3>
-              <p className="text-on-surface text-sm font-medium">6-month anonymized distribution</p>
+        {/* Pending Applications */}
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="w-12 h-12 bg-[#7C5800]/10 rounded-2xl flex items-center justify-center mb-6">
+              <FileText className="text-[#7C5800]" size={28} />
             </div>
-            <select className="bg-surface-container-low border-none rounded-lg text-xs font-bold focus:ring-secondary px-3 py-1.5">
-              <option>Monthly</option>
-              <option>Quarterly</option>
-            </select>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Pending Applications</h3>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-[#7C5800]/40" size={36} />
+              ) : (
+                stats?.pending_applications ?? 0
+              )}
+            </p>
           </div>
-          <div className="h-32 flex items-end gap-3 w-full px-4">
-            {[40, 65, 85, 55, 45, 30].map((h, i) => (
-              <motion.div 
-                key={i}
-                initial={{ height: 0 }}
-                animate={{ height: `${h}%` }}
-                className="bg-primary/20 w-full rounded-t-xl transition-all hover:bg-primary cursor-pointer relative group"
-              >
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                  {h}
-                </div>
-              </motion.div>
-            ))}
+          <a
+            href="#volunteer-applications"
+            className="mt-4 flex items-center gap-2 text-[#7C5800] text-sm font-bold hover:underline"
+          >
+            <Clock size={14} />
+            <span>Awaiting admin review</span>
+          </a>
+        </div>
+
+        {/* Active Volunteers */}
+        <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
+          <div>
+            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
+              <Users className="text-primary" size={28} />
+            </div>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Active Volunteers</h3>
+            <p className="text-5xl font-extrabold font-headline text-on-surface mt-2">
+              {statsLoading && !stats ? (
+                <Loader2 className="animate-spin text-primary/40" size={36} />
+              ) : (
+                stats?.active_volunteers ?? 0
+              )}
+            </p>
           </div>
-          <div className="flex justify-between mt-4 text-[10px] text-on-surface-variant font-bold px-2 uppercase tracking-widest">
-            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'].map(m => <span key={m}>{m}</span>)}
+          <div className="mt-4 flex items-center gap-2 text-secondary text-sm font-bold">
+            <ShieldCheck size={14} />
+            <span>Ready to claim cases</span>
           </div>
         </div>
+      </div>
+
+      {/* Incident Trends Section */}
+      <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4 mb-8">
+          <div>
+            <h3 className="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Incident Trends</h3>
+            <p className="text-on-surface text-sm font-medium mt-1">
+              {trendMode === 'monthly'
+                ? '6-month distribution of reported incidents'
+                : '4-quarter distribution of reported incidents'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={trendMode}
+              onChange={(e) => setTrendMode(e.target.value as 'monthly' | 'quarterly')}
+              className="bg-surface-container-low border border-outline-variant/15 rounded-lg text-xs font-bold text-on-surface focus:ring-secondary px-3 py-1.5 cursor-pointer"
+            >
+              <option value="monthly">Monthly (Last 6 Months)</option>
+              <option value="quarterly">Quarterly (Last 4 Quarters)</option>
+            </select>
+          </div>
+        </div>
+
+        {statsError ? (
+          <div className="py-12 text-center text-sm text-secondary font-medium">
+            Failed to load incident trends.
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="ml-3 underline font-bold hover:opacity-80"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          (() => {
+            const currentTrendData =
+              trendMode === 'monthly'
+                ? (stats?.incident_trends?.monthly ?? [])
+                : (stats?.incident_trends?.quarterly ?? []);
+            const maxCount = Math.max(1, ...currentTrendData.map((d) => d.count));
+
+            return (
+              <div>
+                <div className="h-40 flex items-end gap-3 sm:gap-6 w-full px-4">
+                  {currentTrendData.map((d, i) => {
+                    const percent = d.count === 0 ? 0 : Math.max(10, Math.round((d.count / maxCount) * 100));
+                    return (
+                      <div key={`${trendMode}-${d.label}-${i}`} className="flex-1 flex flex-col items-center h-full justify-end">
+                        <div className="w-full flex items-end justify-center h-full">
+                          <motion.div
+                            initial={{ height: 0 }}
+                            animate={{ height: d.count === 0 ? '6px' : `${percent}%` }}
+                            transition={{ duration: 0.4, ease: 'easeOut' }}
+                            className={cn(
+                              'w-full max-w-[80px] rounded-t-xl transition-all cursor-pointer relative group',
+                              d.count > 0 ? 'bg-primary/25 hover:bg-primary' : 'bg-outline-variant/20 hover:bg-outline-variant/40'
+                            )}
+                          >
+                            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[11px] font-bold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-md whitespace-nowrap z-10">
+                              {d.count} {d.count === 1 ? 'case' : 'cases'}
+                            </div>
+                          </motion.div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-4 text-[11px] text-on-surface-variant font-bold px-4 uppercase tracking-widest">
+                  {currentTrendData.map((d, i) => (
+                    <span key={`${d.label}-${i}`} className="flex-1 text-center truncate">
+                      {d.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()
+        )}
       </div>
 
       <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
@@ -709,7 +848,7 @@ export default function Admin() {
       )}
 
       {!loading && !error && volunteerApplications.length > 0 && (
-        <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+        <section id="volunteer-applications" className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
           <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
               <h2 className="text-2xl font-bold font-headline text-on-surface">Volunteer Applications ({volunteerApplications.filter(app => app.status === 'pending').length} pending)</h2>
