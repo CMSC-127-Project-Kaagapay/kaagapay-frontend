@@ -117,9 +117,15 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md">
+          <a
+            href="https://findahelpline.com/countries/ph"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Crisis Hotline (opens Find a Helpline in a new tab)"
+            className="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md"
+          >
             Crisis Hotline
-          </button>
+          </a>
           {user ? (
             <div className="flex items-center gap-2">
               {userRole !== 'admin' && (
