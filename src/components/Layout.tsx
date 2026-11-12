@@ -123,20 +123,25 @@ export function Navbar() {
           {user ? (
             <div className="flex items-center gap-2">
               {userRole !== 'admin' && (
-                <Link to="/volunteer/profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
+                <Link to="/volunteer/profile" aria-label="My profile" title="My profile" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
                   <UserCircle size={24} />
                 </Link>
               )}
-              <button onClick={handleLogout} className="hidden md:flex text-error hover:bg-error/10 p-2 rounded-lg transition-all">
+              <button onClick={handleLogout} aria-label="Log out" title="Log out" className="hidden md:flex text-error hover:bg-error/10 p-2 rounded-lg transition-all">
                 <LogOut size={24} />
               </button>
             </div>
           ) : (
-            <Link to="/login" className="hidden md:flex text-on-surface-variant hover:bg-surface-container-low p-2 rounded-lg transition-all">
-              <UserCircle size={24} />
+            <Link to="/login" className="hidden md:flex items-center text-sm font-semibold font-headline text-on-surface-variant hover:text-primary hover:bg-surface-container-low px-3 py-2 rounded-lg transition-all">
+              Log in
             </Link>
           )}
-          <button className="md:hidden p-2 rounded-lg text-on-surface-variant" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button
+            className="md:hidden p-2 rounded-lg text-on-surface-variant"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={isMenuOpen}
+          >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -150,6 +155,19 @@ export function Navbar() {
               {link.name}
             </Link>
           ))}
+          {user ? (
+            <button
+              type="button"
+              onClick={() => { setIsMenuOpen(false); handleLogout(); }}
+              className="text-left text-sm font-semibold py-3 px-2 rounded-lg text-error hover:bg-error/10"
+            >
+              Log out
+            </button>
+          ) : (
+            <Link to="/login" onClick={() => setIsMenuOpen(false)} className="text-sm font-semibold py-3 px-2 rounded-lg text-primary hover:bg-surface-container-low">
+              Log in
+            </Link>
+          )}
         </div>
       )}
     </nav>
