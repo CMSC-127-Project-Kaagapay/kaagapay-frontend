@@ -4,47 +4,37 @@ import { Phone, UserCircle, Menu, X, LogOut, Mail, Globe } from 'lucide-react';
 import { cn } from "@/src/lib/utils";
 import logo from "../assets/pk_logo.png";
 import { supabase } from "../lib/supabase";
-import { getVolunteerProfile } from "../lib/api";
+import { getAdminMe, getVolunteerProfile } from "../lib/api";
 
 type UserRole = 'admin' | 'volunteer' | null;
 
-async function resolveUserRole(user: any): Promise<UserRole> {
+/**
+ * Who is this person? Only the backend knows who is an admin (the `admins` table), so the Admin
+ * Dashboard link is shown only when GET /admin/me says so. Account metadata can be edited by the
+ * user, so it is never trusted for admin access. A failed check shows no admin link.
+ */
+async function resolveUserRole(user: any, token: string | undefined): Promise<UserRole> {
   if (!user) return null;
 
   const appMetadata = user?.app_metadata ?? {};
   const userMetadata = user?.user_metadata ?? {};
-  const role = String(
-    appMetadata.role ??
-    userMetadata.role ??
-    appMetadata.user_role ??
-    userMetadata.user_role ??
-    appMetadata.account_type ??
-    userMetadata.account_type ??
-    ''
-  ).toLowerCase();
-  const roles = [
-    ...(Array.isArray(appMetadata.roles) ? appMetadata.roles : []),
-    ...(Array.isArray(userMetadata.roles) ? userMetadata.roles : []),
-  ].map((item) => String(item).toLowerCase());
+  const role = String(appMetadata.role ?? userMetadata.role ?? '').toLowerCase();
+  if (role === 'volunteer') return 'volunteer';
 
-  if (role === 'volunteer' || roles.includes('volunteer')) return 'volunteer';
-
-  if (
-    role === 'admin' ||
-    roles.includes('admin') ||
-    appMetadata.is_admin === true ||
-    userMetadata.is_admin === true ||
-    appMetadata.isAdmin === true ||
-    userMetadata.isAdmin === true
-  ) {
-    return 'admin';
+  if (token) {
+    try {
+      await getAdminMe(token);
+      return 'admin';
+    } catch {
+      // not an admin (403) or the check failed: fall through, no admin link
+    }
   }
 
   try {
     await getVolunteerProfile(user.id);
     return 'volunteer';
   } catch {
-    return 'admin';
+    return null;
   }
 }
 
@@ -59,23 +49,23 @@ export function Navbar() {
   useEffect(() => {
     let isMounted = true;
 
-    async function applySessionUser(sessionUser: any) {
+    async function applySessionUser(sessionUser: any, token?: string) {
       if (!isMounted) return;
       setUser(sessionUser ?? null);
       setUserRole(null);
 
       if (sessionUser) {
-        const role = await resolveUserRole(sessionUser);
+        const role = await resolveUserRole(sessionUser, token);
         if (isMounted) setUserRole(role);
       }
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      applySessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null, session?.access_token);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySessionUser(session?.user ?? null);
+      applySessionUser(session?.user ?? null, session?.access_token);
     });
 
     return () => {
