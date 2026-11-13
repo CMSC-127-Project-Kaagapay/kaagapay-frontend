@@ -18,21 +18,46 @@ import { cn } from "@/src/lib/utils";
 import {
   getRequestedIncidents,
   getPendingIncidents,
+  getAssignedIncidents,
   getSpecificIncident,
   claimIncident,
+  updateIncidentStatus,
   IncidentTicketResponseDto,
+  VolunteerTicketStatus,
 } from "@/src/lib/api";
 import { supabase } from "@/src/lib/supabase";
+
+const NEXT_STATUS_ACTION: Record<string, { next: VolunteerTicketStatus; label: string }> = {
+  claimed: { next: "in_progress", label: "Start Progress" },
+  in_progress: { next: "resolved", label: "Mark Resolved" },
+  resolved: { next: "closed", label: "Close Case" },
+};
 
 export default function VolunteerDashboard() {
   const [requestedTickets, setRequestedTickets] = useState<IncidentTicketResponseDto[]>([]);
   const [pendingTickets, setPendingTickets] = useState<IncidentTicketResponseDto[]>([]);
+  const [assignedTickets, setAssignedTickets] = useState<IncidentTicketResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<IncidentTicketResponseDto | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [updatingCaseId, setUpdatingCaseId] = useState<string | null>(null);
 
   const [notification, setNotification] = useState<{ id: string; message: string; case_id: string } | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<string>("connecting");
+
+  const refreshQueues = async (token: string) => {
+    const sortAsc = (items: IncidentTicketResponseDto[]) =>
+      [...items].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    const [requested, pending, assigned] = await Promise.all([
+      getRequestedIncidents(token),
+      getPendingIncidents(token),
+      getAssignedIncidents(token),
+    ]);
+    setRequestedTickets(sortAsc(requested));
+    setPendingTickets(sortAsc(pending));
+    setAssignedTickets(assigned);
+  };
 
   useEffect(() => {
     let channel: any;
@@ -51,14 +76,7 @@ export default function VolunteerDashboard() {
         }
 
         // Initial fetch
-        const requested = await getRequestedIncidents(token);
-        setRequestedTickets([...requested].sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        ));
-        const pending = await getPendingIncidents(token);
-        setPendingTickets([...pending].sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        ));
+        await refreshQueues(token);
         setLoading(false);
 
         // Start Subscription with a unique name to avoid dev collisions
@@ -92,12 +110,7 @@ export default function VolunteerDashboard() {
                 setTimeout(() => setNotification(null), 60000);
               }
               // Always refresh
-              getRequestedIncidents(token).then(data => 
-                setRequestedTickets([...data].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
-              );
-              getPendingIncidents(token).then(data => 
-                setPendingTickets([...data].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()))
-              );
+              refreshQueues(token).catch((err) => console.error("Error refreshing queues:", err));
             }
           })
           .subscribe((status: string) => {
@@ -145,15 +158,7 @@ export default function VolunteerDashboard() {
 
       await claimIncident(selectedTicket.public_case_id, token);
       setIsModalOpen(false);
-      // Refresh tickets
-      const requested = await getRequestedIncidents(token);
-      setRequestedTickets([...requested].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      ));
-      const pending = await getPendingIncidents(token);
-      setPendingTickets([...pending].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      ));
+      await refreshQueues(token);
 
       alert(`Case ${selectedTicket.public_case_id} successfully claimed!`);
     } catch (error) {
@@ -161,6 +166,30 @@ export default function VolunteerDashboard() {
       alert("Failed to claim ticket. It might have already been taken.");
     } finally {
       setClaiming(false);
+    }
+  };
+
+  const handleAdvanceStatus = async (ticket: IncidentTicketResponseDto) => {
+    const transition = NEXT_STATUS_ACTION[ticket.status];
+    if (!transition) return;
+    try {
+      setUpdatingCaseId(ticket.public_case_id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        alert("You must be logged in to update a ticket.");
+        return;
+      }
+      const updated = await updateIncidentStatus(ticket.public_case_id, transition.next, token);
+      setAssignedTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      if (selectedTicket?.id === updated.id) {
+        setSelectedTicket(updated);
+      }
+    } catch (error: any) {
+      console.error("Error updating ticket status:", error);
+      alert(error?.message || "Failed to update ticket status.");
+    } finally {
+      setUpdatingCaseId(null);
     }
   };
 
@@ -299,6 +328,71 @@ export default function VolunteerDashboard() {
               </div>
             )}
           </section>
+
+          {/* My Claimed Cases */}
+          <section className="bg-surface-container-lowest rounded-[2.5rem] p-8 editorial-shadow border border-outline-variant/10">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold font-headline flex items-center gap-3">
+                <CheckCircle className="text-secondary" />
+                My Claimed Cases
+                <span className="ml-2 text-xs bg-secondary text-on-secondary px-2 py-0.5 rounded-full">
+                  {assignedTickets.length}
+                </span>
+              </h2>
+            </div>
+
+            {assignedTickets.length === 0 ? (
+              <div className="py-16 text-center space-y-3">
+                <p className="text-on-surface-variant font-medium">You have not claimed any cases yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {assignedTickets.map((ticket) => {
+                  const transition = NEXT_STATUS_ACTION[ticket.status];
+                  const isUpdating = updatingCaseId === ticket.public_case_id;
+                  return (
+                    <div
+                      key={ticket.id}
+                      className="p-6 rounded-3xl bg-surface-container-low/60 border border-outline-variant/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => openTicketDetails(ticket.public_case_id)}
+                        className="text-left space-y-1.5 flex-1 cursor-pointer"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-black text-primary">{ticket.public_case_id}</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary">
+                            {ticket.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-on-surface">
+                          {ticket.demographic} • {ticket.locality}
+                        </p>
+                        <p className="text-xs text-on-surface-variant">Involved: {ticket.involved_party}</p>
+                      </button>
+
+                      {transition ? (
+                        <button
+                          type="button"
+                          disabled={isUpdating}
+                          onClick={() => handleAdvanceStatus(ticket)}
+                          className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-extrabold uppercase tracking-wider hover:opacity-90 transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2 shrink-0"
+                        >
+                          {isUpdating && <Loader2 size={14} className="animate-spin" />}
+                          {isUpdating ? 'Updating...' : transition.label}
+                        </button>
+                      ) : (
+                        <span className="px-4 py-2 rounded-xl bg-[#D9FBE8] text-[#007A3D] text-xs font-extrabold uppercase tracking-wider shrink-0">
+                          Completed
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right Column: Open Pool */}
@@ -408,14 +502,32 @@ export default function VolunteerDashboard() {
                 </div>
 
                 <div className="pt-8 border-t border-outline-variant/10 flex gap-4">
-                  <button
-                    onClick={handleAcceptTicket}
-                    disabled={claiming}
-                    className="flex-1 py-4 bg-primary text-on-primary rounded-2xl font-black text-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
-                  >
-                    {claiming ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
-                    {claiming ? "Claiming..." : "Accept Ticket"}
-                  </button>
+                  {(selectedTicket.status === 'pending' || selectedTicket.status === 'requested') && (
+                    <button
+                      onClick={handleAcceptTicket}
+                      disabled={claiming}
+                      className="flex-1 py-4 bg-primary text-on-primary rounded-2xl font-black text-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                    >
+                      {claiming ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
+                      {claiming ? "Claiming..." : "Accept Ticket"}
+                    </button>
+                  )}
+                  {NEXT_STATUS_ACTION[selectedTicket.status] && (
+                    <button
+                      onClick={() => handleAdvanceStatus(selectedTicket)}
+                      disabled={updatingCaseId === selectedTicket.public_case_id}
+                      className="flex-1 py-4 bg-primary text-on-primary rounded-2xl font-black text-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                    >
+                      {updatingCaseId === selectedTicket.public_case_id ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <CheckCircle size={20} />
+                      )}
+                      {updatingCaseId === selectedTicket.public_case_id
+                        ? "Updating..."
+                        : NEXT_STATUS_ACTION[selectedTicket.status].label}
+                    </button>
+                  )}
                   <button
                     onClick={() => setIsModalOpen(false)}
                     className="px-6 py-4 bg-surface-container text-on-surface font-bold rounded-2xl hover:bg-surface-container-high transition-all"
