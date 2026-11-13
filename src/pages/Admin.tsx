@@ -19,7 +19,10 @@ import {
   Loader2,
   Eye,
   X,
-  RefreshCw
+  RefreshCw,
+  ExternalLink,
+  UserX,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import ConfirmDeleteDialog from '@/src/components/ConfirmDeleteDialog';
@@ -33,6 +36,9 @@ import {
   getAdminTicketsByStatus,
   getDeletedAdminTickets,
   getVolunteers,
+  getAdminVolunteers,
+  revokeVolunteer,
+  restoreVolunteer,
   deleteAdminTicket,
   restoreAdminTicket,
   getAdminStats,
@@ -40,6 +46,7 @@ import {
   AdminTicketStatus,
   IncidentTicketResponseDto,
   DeletedTicketResponseDto,
+  VolunteerResponseDto,
   VolunteerApplicationResponseDto // Import DTO from api.ts
 } from '@/src/lib/api'; // Import API functions from api.ts
 
@@ -159,6 +166,14 @@ export default function Admin() {
   const [statsLoading, setStatsLoading] = useState<boolean>(true);
   const [statsError, setStatsError] = useState<string | null>(null);
   const [trendMode, setTrendMode] = useState<'monthly' | 'quarterly'>('monthly');
+  const [adminVolunteers, setAdminVolunteers] = useState<VolunteerResponseDto[]>([]);
+  const [volunteersLoading, setVolunteersLoading] = useState<boolean>(true);
+  const [volunteersError, setVolunteersError] = useState<string | null>(null);
+  const [showRevokedVolunteers, setShowRevokedVolunteers] = useState<boolean>(false);
+  const [volunteerToRevoke, setVolunteerToRevoke] = useState<VolunteerResponseDto | null>(null);
+  const [revokingVolunteer, setRevokingVolunteer] = useState<boolean>(false);
+  const [restoringVolunteerId, setRestoringVolunteerId] = useState<string | null>(null);
+  const [volunteerNotice, setVolunteerNotice] = useState<{ text: string; failed: boolean } | null>(null);
 
   useEffect(() => {
     if (ticketStatus && !isAdminTicketView(ticketStatus)) {
@@ -183,6 +198,31 @@ export default function Admin() {
       }
     }
     fetchStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchAdminVolunteers() {
+      setVolunteersLoading(true);
+      setVolunteersError(null);
+      try {
+        const token = getAuthToken();
+        if (!token) {
+          if (isMounted) setVolunteersError('Authentication token not found.');
+          return;
+        }
+        const data = await getAdminVolunteers(token, true);
+        if (isMounted) setAdminVolunteers(data);
+      } catch (err: any) {
+        if (isMounted) setVolunteersError(err.message || 'Failed to load volunteers');
+      } finally {
+        if (isMounted) setVolunteersLoading(false);
+      }
+    }
+    fetchAdminVolunteers();
     return () => {
       isMounted = false;
     };
@@ -416,6 +456,56 @@ export default function Admin() {
   const handleApprove = (application_id: string) => handleAction(application_id, 'approve');
   const handleReject = (application_id: string) => handleAction(application_id, 'reject');
 
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleConfirmRevoke = async () => {
+    if (!volunteerToRevoke) return;
+    const token = getAuthToken();
+    if (!token) {
+      setVolunteerNotice({ text: 'Authentication token not found. Please log in as an administrator.', failed: true });
+      return;
+    }
+    setRevokingVolunteer(true);
+    setVolunteerNotice(null);
+    try {
+      const updated = await revokeVolunteer(volunteerToRevoke.id, token);
+      setAdminVolunteers((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      setVolunteerNotice({ text: `${updated.public_alias} has been revoked and hidden from public lists.`, failed: false });
+      setVolunteerToRevoke(null);
+      setReloadKey((k) => k + 1);
+    } catch (err: any) {
+      setVolunteerNotice({ text: err.message || 'Failed to revoke volunteer.', failed: true });
+    } finally {
+      setRevokingVolunteer(false);
+    }
+  };
+
+  const handleRestoreVolunteer = async (volunteer: VolunteerResponseDto) => {
+    const token = getAuthToken();
+    if (!token) {
+      setVolunteerNotice({ text: 'Authentication token not found. Please log in as an administrator.', failed: true });
+      return;
+    }
+    setRestoringVolunteerId(volunteer.id);
+    setVolunteerNotice(null);
+    try {
+      const updated = await restoreVolunteer(volunteer.id, token);
+      setAdminVolunteers((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      setVolunteerNotice({ text: `${updated.public_alias} has been restored to active status.`, failed: false });
+      setReloadKey((k) => k + 1);
+    } catch (err: any) {
+      setVolunteerNotice({ text: err.message || 'Failed to restore volunteer.', failed: true });
+    } finally {
+      setRestoringVolunteerId(null);
+    }
+  };
+
+  const activeVolunteers = adminVolunteers.filter((v) => v.status !== 'revoked');
+  const revokedVolunteers = adminVolunteers.filter((v) => v.status === 'revoked');
+  const displayedVolunteers = showRevokedVolunteers ? revokedVolunteers : activeVolunteers;
+
   return (
     <div className="pt-32 pb-24 px-6 max-w-7xl mx-auto space-y-12">
       {/* Admin Header */}
@@ -424,7 +514,7 @@ export default function Admin() {
           <h1 className="text-4xl font-extrabold font-headline text-primary tracking-tight mb-2">Administrative Dashboard</h1>
           <p className="text-on-surface-variant text-lg">Secure monitoring and management of campus safety reports. Data shown is anonymized and follows strict privacy protocols.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-xl text-sm font-bold border border-outline-variant/15">
             <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
             <span className="text-on-surface-variant">System Online</span>
@@ -433,11 +523,42 @@ export default function Admin() {
             <Lock size={14} className="text-primary" />
             <span className="text-on-surface-variant">Admin Session Active</span>
           </div>
+          <a
+            href="/studio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-md hover:opacity-90 active:scale-95 transition-all"
+          >
+            <span>Open Studio</span>
+            <ExternalLink size={15} />
+          </a>
         </div>
       </header>
 
+      {/* Sticky Section Navigation */}
+      <nav
+        aria-label="Admin dashboard sections"
+        className="sticky top-24 z-30 bg-surface/90 backdrop-blur-md border border-outline-variant/15 rounded-2xl p-2 shadow-sm flex flex-wrap items-center gap-2"
+      >
+        {[
+          { id: 'overview', label: 'Overview & Trends' },
+          { id: 'tickets', label: 'Tickets' },
+          { id: 'volunteer-list', label: `Volunteer List (${activeVolunteers.length})` },
+          { id: 'volunteer-applications', label: `Applications (${volunteerApplications.filter((app) => app.status === 'pending').length})` },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => scrollToSection(item.id)}
+            className="px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
       {/* Stats Grid - 4 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div id="overview" className="scroll-mt-40 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Active Reports */}
         <div className="p-8 bg-surface-container-lowest editorial-shadow rounded-[2.5rem] border border-outline-variant/10 flex flex-col justify-between min-h-[220px]">
           <div>
@@ -608,7 +729,7 @@ export default function Admin() {
         )}
       </div>
 
-      <section className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+      <section id="tickets" className="scroll-mt-40 bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
         <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             <div>
@@ -840,6 +961,176 @@ export default function Admin() {
         />
       )}
 
+      {/* Volunteer List Section */}
+      <section id="volunteer-list" className="scroll-mt-40 bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div>
+              <h2 className="text-2xl font-bold font-headline text-on-surface">
+                Volunteer List ({showRevokedVolunteers ? `${revokedVolunteers.length} revoked` : `${activeVolunteers.length} active`})
+              </h2>
+              <p className="text-on-surface-variant text-sm font-medium mt-1">
+                Revoked volunteers are hidden from the public Volunteer directory and Report selection list.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-2xl border border-outline-variant/15 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => setShowRevokedVolunteers(false)}
+                className={cn(
+                  'px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all',
+                  !showRevokedVolunteers
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-on-surface-variant hover:text-primary'
+                )}
+              >
+                Active ({activeVolunteers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRevokedVolunteers(true)}
+                className={cn(
+                  'px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all',
+                  showRevokedVolunteers
+                    ? 'bg-error text-on-error shadow-sm'
+                    : 'text-on-surface-variant hover:text-error'
+                )}
+              >
+                Show Revoked ({revokedVolunteers.length})
+              </button>
+            </div>
+          </div>
+
+          {volunteerNotice && (
+            <p
+              role={volunteerNotice.failed ? 'alert' : 'status'}
+              className={cn(
+                'mb-6 px-4 py-3 rounded-2xl text-sm font-semibold',
+                volunteerNotice.failed ? 'bg-error-container text-on-error-container' : 'bg-secondary-container text-on-secondary-container'
+              )}
+            >
+              {volunteerNotice.text}
+            </p>
+          )}
+
+          {volunteersLoading && adminVolunteers.length === 0 ? (
+            <div className="py-12 flex items-center justify-center gap-3 text-on-surface-variant font-bold">
+              <Loader2 className="animate-spin text-primary" size={20} />
+              Loading volunteers...
+            </div>
+          ) : volunteersError ? (
+            <p className="text-error text-center py-8 font-medium">{volunteersError}</p>
+          ) : displayedVolunteers.length === 0 ? (
+            <div className="py-12 text-center text-on-surface-variant font-medium">
+              {showRevokedVolunteers ? 'No revoked volunteers.' : 'No active volunteers found.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-separate border-spacing-y-3">
+                <thead>
+                  <tr className="text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">
+                    <th className="px-6 py-2">Alias / Name</th>
+                    <th className="px-6 py-2">Handle / Email</th>
+                    <th className="px-6 py-2">Status</th>
+                    <th className="px-6 py-2">Points</th>
+                    <th className="px-6 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm font-medium">
+                  {displayedVolunteers.map((vol) => {
+                    const isRevoked = vol.status === 'revoked';
+                    return (
+                      <tr key={vol.id} className="bg-surface-container-low/60 hover:bg-surface-container-low transition-colors">
+                        <td className="px-6 py-4 rounded-l-2xl">
+                          <div className="font-bold text-on-surface">{vol.public_alias}</div>
+                          <div className="text-xs text-on-surface-variant">{vol.first_name} {vol.last_name}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-on-surface font-semibold">{vol.external_handle}</div>
+                          <div className="text-xs text-on-surface-variant">{vol.email}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={cn(
+                              'px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider',
+                              isRevoked
+                                ? 'bg-error-container text-on-error-container'
+                                : 'bg-[#D9FBE8] text-[#007A3D]'
+                            )}
+                          >
+                            {vol.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-on-surface tabular-nums">{vol.incentive_points}</td>
+                        <td className="px-6 py-4 rounded-r-2xl text-right">
+                          {isRevoked ? (
+                            <button
+                              type="button"
+                              disabled={restoringVolunteerId === vol.id}
+                              onClick={() => handleRestoreVolunteer(vol)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-secondary/10 text-secondary hover:bg-secondary/20 transition-colors disabled:opacity-50"
+                            >
+                              <RotateCcw size={14} />
+                              {restoringVolunteerId === vol.id ? 'Restoring...' : 'Restore'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setVolunteerToRevoke(vol)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-error/10 text-error hover:bg-error/20 transition-colors"
+                            >
+                              <UserX size={14} />
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {volunteerToRevoke && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="revoke-volunteer-title"
+            className="w-full max-w-md rounded-3xl bg-surface-container-lowest p-8 shadow-2xl border border-outline-variant/20 space-y-5"
+          >
+            <h3 id="revoke-volunteer-title" className="text-xl font-extrabold font-headline text-on-surface">
+              Revoke {volunteerToRevoke.public_alias}?
+            </h3>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              <strong>{volunteerToRevoke.first_name} {volunteerToRevoke.last_name}</strong> ({volunteerToRevoke.external_handle}) will be hidden from the public Volunteer page and Report form. You can restore them anytime under <strong>Show Revoked</strong>.
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={revokingVolunteer}
+                onClick={() => setVolunteerToRevoke(null)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={revokingVolunteer}
+                onClick={handleConfirmRevoke}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold bg-error text-on-error hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {revokingVolunteer ? 'Revoking...' : 'Confirm Revoke'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {loading && <p className="text-on-surface-variant text-center">Loading volunteer applications...</p>}
       {error && <p className="text-error text-center">{error}</p>}
 
@@ -848,7 +1139,7 @@ export default function Admin() {
       )}
 
       {!loading && !error && volunteerApplications.length > 0 && (
-        <section id="volunteer-applications" className="bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
+        <section id="volunteer-applications" className="scroll-mt-40 bg-surface-container-low rounded-[3rem] p-1 border border-outline-variant/10 overflow-hidden">
           <div className="bg-surface-container-lowest rounded-[3rem] p-10 editorial-shadow">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
               <h2 className="text-2xl font-bold font-headline text-on-surface">Volunteer Applications ({volunteerApplications.filter(app => app.status === 'pending').length} pending)</h2>
