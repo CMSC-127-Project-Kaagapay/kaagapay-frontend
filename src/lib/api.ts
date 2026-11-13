@@ -528,3 +528,33 @@ export async function getAdminStats(token: string): Promise<AdminStats> {
   });
   return handleApiResponse(response);
 }
+
+/** Fetches all volunteers (including revoked) for the admin dashboard. */
+export async function getAdminVolunteers(token: string, includeRevoked = true): Promise<VolunteerResponseDto[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/volunteers?include_revoked=${includeRevoked}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleApiResponse(response);
+}
+
+async function patchAdminVolunteerStatus(
+  volunteerId: string,
+  action: 'revoke' | 'restore',
+  token: string,
+): Promise<VolunteerResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/admin/volunteers/${volunteerId}/${action}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleApiResponse(response);
+}
+
+/** Soft-revokes a volunteer so they are hidden from public and report lists. */
+export function revokeVolunteer(volunteerId: string, token: string): Promise<VolunteerResponseDto> {
+  return patchAdminVolunteerStatus(volunteerId, 'revoke', token);
+}
+
+/** Restores a previously revoked volunteer back to active status. */
+export function restoreVolunteer(volunteerId: string, token: string): Promise<VolunteerResponseDto> {
+  return patchAdminVolunteerStatus(volunteerId, 'restore', token);
+}
