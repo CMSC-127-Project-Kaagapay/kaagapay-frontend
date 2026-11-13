@@ -13,7 +13,6 @@ import {
   Users, 
   BarChart3, 
   FileText,
-  Lock,
   Inbox,
   Clock,
   Loader2,
@@ -515,14 +514,6 @@ export default function Admin() {
           <p className="text-on-surface-variant text-lg">Secure monitoring and management of campus safety reports. Data shown is anonymized and follows strict privacy protocols.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-xl text-sm font-bold border border-outline-variant/15">
-            <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-            <span className="text-on-surface-variant">System Online</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-xl text-sm font-bold border border-outline-variant/15">
-            <Lock size={14} className="text-primary" />
-            <span className="text-on-surface-variant">Admin Session Active</span>
-          </div>
           <a
             href="/studio"
             target="_blank"
