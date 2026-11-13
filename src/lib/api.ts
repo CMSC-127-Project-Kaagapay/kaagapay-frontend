@@ -317,6 +317,35 @@ export async function getPendingIncidents(token: string): Promise<IncidentTicket
   return handleApiResponse(response);
 }
 
+/** Fetches all claimed/in-progress/resolved/closed tickets assigned to the authenticated volunteer. */
+export async function getAssignedIncidents(token: string): Promise<IncidentTicketResponseDto[]> {
+  const response = await fetch(`${API_BASE_URL}/incidents/assigned`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  return handleApiResponse(response);
+}
+
+export type VolunteerTicketStatus = "in_progress" | "resolved" | "closed";
+
+/** Updates the status of a claimed incident ticket (claimed -> in_progress -> resolved -> closed). */
+export async function updateIncidentStatus(
+  publicCaseId: string,
+  status: VolunteerTicketStatus,
+  token: string,
+): Promise<IncidentTicketResponseDto> {
+  const response = await fetch(`${API_BASE_URL}/incidents/${publicCaseId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status }),
+  });
+  return handleApiResponse(response);
+}
+
 export interface AdminTicketFilters {
   volunteerId?: string;
   dateFrom?: string; // YYYY-MM-DD, inclusive
